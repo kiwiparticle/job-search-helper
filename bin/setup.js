@@ -69,17 +69,24 @@ let d1Id = null;
     const db = d1Name(toml);
     if (!toml) skip(3, 'no wrangler.toml (step 2 first)');
     else if (!db) skip(3, 'no database_name in wrangler.toml');
-    else if (!hasPlaceholder(toml)) { d1Id = toml.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1]; say(3, 'ok D1 id in wrangler.toml'); }
-    else if (check) { todo++; say(3, `would create D1 database ${db}, write its id, apply db/schema.sql`); }
-    else {
-        sh('npx', ['wrangler', 'd1', 'create', db]); // fails harmlessly when it already exists
-        d1Id = d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db);
+    else if (check) {
+        if (hasPlaceholder(toml)) { todo++; say(3, `would create D1 database ${db}, write its id, apply db/schema.sql`); }
+        else say(3, 'ok D1 id in wrangler.toml (a real run re-applies the idempotent schema)');
+    } else {
+        let text = toml;
+        if (hasPlaceholder(text)) {
+            sh('npx', ['wrangler', 'd1', 'create', db]); // fails harmlessly when it already exists
+            const id = d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db);
+            if (id) { text = setD1Id(text, id); writeFileSync(tomlPath, text); }
+        }
+        d1Id = hasPlaceholder(text) ? null : text.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1];
         if (!d1Id) skip(3, 'could not read the D1 id: run `npx wrangler d1 list`, put it in wrangler.toml');
         else {
-            // schema first: the toml changes only on success, so a re-run finds the DB by name and retries (schema is idempotent)
+            // wrangler reads the id from wrangler.toml, so it must be written first. The schema is idempotent
+            // (IF NOT EXISTS / INSERT OR IGNORE), so every run applies it and a failed one is retried.
             const r = sh('npx', ['wrangler', 'd1', 'execute', db, '--remote', '--file', 'db/schema.sql']);
-            if (r.ok) { writeFileSync(tomlPath, setD1Id(toml, d1Id)); say(3, `done D1 ${d1Id}, schema applied`); }
-            else skip(3, `schema failed (re-run to retry): ${r.out.trim().split('\n').pop()}`);
+            if (r.ok) say(3, `ok D1 ${d1Id}, schema applied`);
+            else skip(3, `schema failed (re-run to retry): ${r.out.trim().split('\n').filter((l) => !/Logs were written/.test(l)).pop()}`);
         }
     }
 }
