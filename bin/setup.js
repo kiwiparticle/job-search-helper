@@ -78,7 +78,7 @@ let freshD1 = false; // created by this run: a Pages project with the same name 
                 ? `name taken: a D1 database named ${db} already exists on this account. Pick another database_name and name in wrangler.toml`
                 : `would create D1 database ${db}, write its id, apply db/schema.sql`);
         }
-        else say(3, 'ok D1 id in wrangler.toml (a real run re-applies the idempotent schema)');
+        else { d1Id = toml.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1] || null; say(3, 'ok D1 id in wrangler.toml (a real run re-applies the idempotent schema)'); }
     } else {
         let text = toml;
         let taken = false;
