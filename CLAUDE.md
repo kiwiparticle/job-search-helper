@@ -38,7 +38,7 @@ Code never edits these unless the entry names its exception. Model runs only ret
 - `CLAUDE.local.md`: the owner's own notes, loaded beside this file; exists only in the owner's repo.
 - `data/schedule.json`: which runs start on their own and when (UTC), read by `schedule.yml` and the page.
 - `data/reasons.json`: the one-tap reasons Skip and Save offer (`{ skip: [], save: [] }`).
-- `data/sources.json` (culture run sources), `data/verticals.json` (vertical sweep list), `data/master-sections.json`, `data/aliases.json` (migration only).
+- `data/sources.json` (culture run sources), `data/verticals.json` (vertical sweep list), `data/master-sections.json`.
 - `docs/resume-cover-letter-guidelines.md`, `docs/positioning.md`: read by kit prompts.
 - `history.md`: dated archive. Grep by company name, never read whole.
 - `data/*.jsonl` is the generated daily export of D1. Don't hand-edit it.
@@ -49,11 +49,11 @@ Database `job-search`, bound as `DB`. Schema `db/schema.sql`. Each row is one re
 
 | Table | Holds | Written by |
 | --- | --- | --- |
-| `companies` | identity, stance (`stanceBy` when a model set it), facts, `rolesSkipped`, job states (`jobs`), applications, `proposals`, `events` | page actions, search/ask/fill finish, migration |
+| `companies` | identity, stance (`stanceBy` when a model set it), facts, `rolesSkipped`, job states (`jobs`), applications, `proposals`, `events` | page actions, search/ask/fill finish |
 | `postings` | slim postings: role, url, `modelSays`, `payEstimate`, `wasLead`, `posted`, `goneAt`, `source`, `location`, `filteredBy` | search finish, sweep, posting check (also prunes) |
 | `supplement` | owner facts outside the master (`open`, `merging`, `merged`, `dismissed`) | page supplement actions, `bin/merge-master.js` |
 | `tune` | tune-run proposals: one find/replace in an allowed file with its `baseSha` (`open`, `applying`, `applied`, `dismissed`, `stale`) | tune finish, page `applyTune`/`dismissTune`, `bin/tune-apply.js` |
-| `history` | migrated history excerpts | migration only |
+| `history` | history excerpts from the v1 migration (nothing writes it now) | none |
 | `finished_runs` | one row per finished run/ask/fill, with the change list Undo needs | the same finish batch |
 
 - **Versioned writes.** Every UPDATE/DELETE names the version it read and is followed by `INSERT INTO guard (ok) SELECT 0 WHERE changes() = 0`. A moved version fails the CHECK and aborts the whole batch. `lib/store.js` `writeRows` turns that into `409 stale write`. Only write D1 through `writeRows`.
