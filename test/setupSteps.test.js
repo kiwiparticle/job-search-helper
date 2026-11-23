@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { missingOwnerFiles, setD1Id, d1IdByName, d1Name, repoFromUrl } from '../lib/setupSteps.js';
+import { missingOwnerFiles, setD1Id, d1IdByName, d1Name, repoFromUrl, runnersWanted, runnerFolder } from '../lib/setupSteps.js';
 
 test('missingOwnerFiles lists examples whose owner path is absent', () => {
     const d = mkdtempSync(join(tmpdir(), 's-'));
@@ -43,4 +43,15 @@ test('repoFromUrl reads owner/repo from https and ssh remotes', () => {
     assert.equal(repoFromUrl('https://github.com/acme/job-search'), 'acme/job-search');
     assert.equal(repoFromUrl(''), null);
     assert.equal(repoFromUrl('https://gitlab.com/acme/x.git'), null);
+});
+
+test('runnersWanted: one per searcher, at least one', () => {
+    assert.equal(runnersWanted({ search: { searchers: ['claude', 'codex'] } }), 2);
+    assert.equal(runnersWanted({ search: { searchers: ['claude'] } }), 1);
+    assert.equal(runnersWanted(undefined), 1);
+});
+
+test('runnerFolder is named after the repo', () => {
+    assert.equal(runnerFolder('acme/job-search', 1), 'actions-runner-job-search');
+    assert.equal(runnerFolder('acme/job-search', 2), 'actions-runner-job-search-2');
 });

@@ -14,10 +14,13 @@ Follow these steps in order. Say what you are about to do, and do not skip ahead
    - `data/profile.json`: who they are, pay floor and currency, stack, anything the prompts slot in.
    - `data/sweep-filter.json`: title words to require and reject, levels, locations. Bump `version` on later edits.
    - `data/schedule.json`: which searches run and when.
-   - `data/models.json`: ask which of `claude`, `codex` they have. Check each with `claude --version` / `codex --version`; set `enabled: false` on any CLI that is not installed and logged in.
+   - `data/models.json`: ask which of `claude`, `codex` they have. Check each with `claude --version` / `codex --version`; set `enabled: false` on any CLI that is not installed and logged in. Then ask how searches use them and write `defaults.search`:
+     - one searcher (cheaper, one runner) or two (more finds; each needs its own runner to run side by side);
+     - reviewer: `none` (the default), `null` for "each other" (two searchers check each other's finds), or a model id.
+   - `wrangler.toml` (copy `examples/wrangler.toml`): a name for the Pages project and the D1 database, `name` and `database_name`. The default `job-search` is fine for a first install; it must be unused on their Cloudflare account (`bin/setup.js` refuses a taken one). The page lives at `<name>.pages.dev`.
    - `instructions.md`: from `examples/instructions.md`, adjusted to their target roles and dealbreakers.
    - `master-resume.md`: from their existing resume (follow `prompts/seed-master.md`), or by interview. Every fact must be true.
-3. **Run `node bin/setup.js --check`**, show the result, then `node bin/setup.js`. It checks prerequisites, copies owner files, creates D1 and applies the schema, creates and deploys the Pages project, sets repo variables `JOB_SEARCH_ENABLED`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, and prints the runner commands. Anything it prints as `skip:` is for the person to do by hand (install lines, the runner commands with `sudo`); help them, then re-run until every step is `ok`.
+3. **Run `node bin/setup.js --check`**, show the result, then `node bin/setup.js`. It checks prerequisites, copies owner files, creates D1 and applies the schema, creates and deploys the Pages project, sets repo variables `JOB_SEARCH_ENABLED`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, and prints the commands for the runners still missing: one per searcher, in `~/actions-runner-<repo>`, `-2`, registered to this repo. Anything it prints as `skip:` is for the person to do by hand (install lines, the runner commands with `sudo`); help them, then re-run until every step is `ok`.
 4. **Dashboard steps** (the person clicks; you guide):
    - Cloudflare Zero Trust: Access application for the Pages domain (`<project>.pages.dev`) and any custom domain, one policy allowing only their email. Note the application AUD tag (on the application's Overview) and the team domain (Zero Trust, Overview, Discover tab, account details on the right; type only the host, `yourteam.cloudflareaccess.com`, no `https://`).
    - Cloudflare, My Profile, API Tokens: create a token with Account, D1, Edit only, this account only.
@@ -30,5 +33,5 @@ Follow these steps in order. Say what you are about to do, and do not skip ahead
    - `! npx wrangler pages secret put GITHUB_TOKEN`
    - `! npx wrangler pages secret put OWNER_EMAIL`
    Then `pnpm run deploy` so the page picks them up.
-6. **Optional**, only if they want it: local models (`opencode`, then `node bin/sync-models.js`), `agy` (Gemini), more runners (`~/actions-runner-2` and so on, same private repo).
+6. **Optional**, only if they want it: local models (`opencode`, then `node bin/sync-models.js`), `agy` (Gemini), more runners than one per searcher (only useful when local models or kits run alongside searches).
 7. **Verify.** Open the page: it must load only behind Access login. Commit and push the owner files, then `gh workflow run search.yml -R <owner/repo> -f workflow=daily`, watch it with `gh run watch -R <owner/repo>`; leads appear on the New page when it finishes (`tracked` only checks known companies, so it finds nothing on an empty database). If it fails, read the run log with them and fix the cause.

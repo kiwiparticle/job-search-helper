@@ -5,7 +5,8 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { d1IdByName, d1Name, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, repoFromUrl, setD1Id } from '../lib/setupSteps.js';
+import { d1IdByName, d1Name, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, repoFromUrl, runnerFolder, runnersWanted, setD1Id } from '../lib/setupSteps.js';
+import { loadModels } from '../lib/models.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const check = process.argv.includes('--check');
@@ -64,23 +65,35 @@ if (check) console.log('--check: reports only, writes nothing.');
 
 // 3. D1
 let d1Id = null;
+let freshD1 = false; // created by this run: a Pages project with the same name then belongs to someone else
 {
     const toml = existsSync(tomlPath) ? readFileSync(tomlPath, 'utf8') : '';
     const db = d1Name(toml);
     if (!toml) skip(3, 'no wrangler.toml (step 2 first)');
     else if (!db) skip(3, 'no database_name in wrangler.toml');
     else if (check) {
-        if (hasPlaceholder(toml)) { todo++; say(3, `would create D1 database ${db}, write its id, apply db/schema.sql`); }
+        if (hasPlaceholder(toml)) {
+            todo++;
+            say(3, d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db)
+                ? `name taken: a D1 database named ${db} already exists on this account. Pick another database_name and name in wrangler.toml`
+                : `would create D1 database ${db}, write its id, apply db/schema.sql`);
+        }
         else say(3, 'ok D1 id in wrangler.toml (a real run re-applies the idempotent schema)');
     } else {
         let text = toml;
+        let taken = false;
         if (hasPlaceholder(text)) {
-            sh('npx', ['wrangler', 'd1', 'create', db]); // fails harmlessly when it already exists
-            const id = d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db);
-            if (id) { text = setD1Id(text, id); writeFileSync(tomlPath, text); }
+            // An existing database with this name is another install's (this copy writes its id before anything else).
+            if (d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db)) taken = true;
+            else {
+                sh('npx', ['wrangler', 'd1', 'create', db]);
+                const id = d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db);
+                if (id) { text = setD1Id(text, id); writeFileSync(tomlPath, text); freshD1 = true; }
+            }
         }
         d1Id = hasPlaceholder(text) ? null : text.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1];
-        if (!d1Id) skip(3, 'could not read the D1 id: run `npx wrangler d1 list`, put it in wrangler.toml');
+        if (taken) skip(3, `a D1 database named ${db} already exists on this Cloudflare account (another install?). Pick another name: database_name and name in wrangler.toml`);
+        else if (!d1Id) skip(3, 'could not read the D1 id: run `npx wrangler d1 list`, put it in wrangler.toml');
         else {
             // wrangler reads the id from wrangler.toml, so it must be written first. The schema is idempotent
             // (IF NOT EXISTS / INSERT OR IGNORE), so every run applies it and a failed one is retried.
@@ -94,8 +107,11 @@ let d1Id = null;
 // 4. Pages project (deploy only when just created)
 {
     const name = pagesName(existsSync(tomlPath) ? readFileSync(tomlPath, 'utf8') : '');
+    const exists = name && hasPagesProject(sh('npx', ['wrangler', 'pages', 'project', 'list', '--json']).out, name);
     if (!name) skip(4, 'no name in wrangler.toml');
-    else if (hasPagesProject(sh('npx', ['wrangler', 'pages', 'project', 'list', '--json']).out, name)) say(4, `ok Pages project ${name}`);
+    else if (!check && !d1Id) skip(4, 'D1 first (step 3), then re-run');
+    else if (exists && (freshD1 || (check && hasPlaceholder(readFileSync(tomlPath, 'utf8'))))) skip(4, `name taken: a Pages project named ${name} already exists on this account (another install?). Pick another name in wrangler.toml${check ? '' : `; the D1 database ${d1Name(readFileSync(tomlPath, 'utf8'))} this run created can stay (its id is in wrangler.toml) or be deleted with npx wrangler d1 delete`}`);
+    else if (exists) say(4, `ok Pages project ${name}`);
     else if (check) { todo++; say(4, `would create Pages project ${name}${existsSync(join(root, 'node_modules')) ? '' : ', run pnpm install --frozen-lockfile'} and deploy once`); }
     else if (!sh('npx', ['wrangler', 'pages', 'project', 'create', name, '--production-branch', 'main']).ok) skip(4, `create it by hand: npx wrangler pages project create ${name} --production-branch main`);
     else {
@@ -126,16 +142,23 @@ let d1Id = null;
     say(5, notes.length ? `${check ? 'todo' : 'done'} ${notes.join('; ')}` : 'ok repo variables');
 }
 
-// 6. runner (never runs sudo)
+// 6. runners (never runs sudo): one per searcher, registered to this repo
 {
-    if (existsSync(join(homedir(), 'actions-runner'))) say(6, 'ok ~/actions-runner exists');
+    const want = runnersWanted(loadModels(root).defaults);
+    let have = null;
+    try { have = JSON.parse(sh('gh', ['api', `repos/${repo}/actions/runners`]).out).total_count; } catch {}
+    if (have == null) skip(6, `could not list this repo's runners (gh api repos/${repo}/actions/runners); register ${want} by hand`);
+    else if (have >= want) say(6, `ok ${have} runner(s) registered to ${repo}`);
     else {
         todo++;
-        say(6, 'skip: register a runner (private repo only), in your terminal:');
-        console.log(`   mkdir ~/actions-runner && cd ~/actions-runner
+        say(6, `skip: ${have} of ${want} runner(s) registered to ${repo} (one per searcher). In your terminal, for each missing one:`);
+        for (let i = have + 1; i <= want; i++) {
+            const dir = runnerFolder(repo, i);
+            console.log(`   mkdir ~/${dir} && cd ~/${dir}
    # download the Linux x64 package from https://github.com/actions/runner/releases and extract it, then:
-   ./config.sh --url https://github.com/${repo} --token $(gh api -X POST repos/${repo}/actions/runners/registration-token -q .token)
+   ./config.sh --unattended --url https://github.com/${repo} --name ${dir} --token $(gh api -X POST repos/${repo}/actions/runners/registration-token -q .token)
    sudo ./svc.sh install && sudo ./svc.sh start`);
+        }
     }
 }
 
