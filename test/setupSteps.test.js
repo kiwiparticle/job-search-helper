@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { missingOwnerFiles, setD1Id, d1IdByName, d1Name } from '../lib/setupSteps.js';
+import { missingOwnerFiles, setD1Id, d1IdByName, d1Name, repoFromUrl } from '../lib/setupSteps.js';
 
 test('missingOwnerFiles lists examples whose owner path is absent', () => {
     const d = mkdtempSync(join(tmpdir(), 's-'));
@@ -35,4 +35,12 @@ test('hasPagesProject matches the exact name only', () => {
 test('d1Name reads database_name, null when absent', () => {
     assert.equal(d1Name('name = "x"\n[[d1_databases]]\ndatabase_name = "my-jobs"\n'), 'my-jobs');
     assert.equal(d1Name('name = "x"\n'), null);
+});
+
+test('repoFromUrl reads owner/repo from https and ssh remotes', () => {
+    assert.equal(repoFromUrl('https://github.com/acme/job-search.git\n'), 'acme/job-search');
+    assert.equal(repoFromUrl('git@github.com:acme/job-search.git'), 'acme/job-search');
+    assert.equal(repoFromUrl('https://github.com/acme/job-search'), 'acme/job-search');
+    assert.equal(repoFromUrl(''), null);
+    assert.equal(repoFromUrl('https://gitlab.com/acme/x.git'), null);
 });

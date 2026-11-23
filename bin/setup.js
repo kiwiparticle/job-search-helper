@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { d1IdByName, d1Name, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, setD1Id } from '../lib/setupSteps.js';
+import { d1IdByName, d1Name, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, repoFromUrl, setD1Id } from '../lib/setupSteps.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const check = process.argv.includes('--check');
@@ -18,13 +18,16 @@ const tomlPath = join(root, 'wrangler.toml');
 let todo = 0;
 const skip = (n, text) => { todo++; say(n, `skip: ${text}`); };
 
-// Refuse unless the repo is private.
-const priv = sh('gh', ['repo', 'view', '--json', 'isPrivate', '-q', '.isPrivate']);
+// Refuse unless `origin` is private. Read the repo from origin itself: gh prefers an `upstream`
+// remote, which here is the public engine.
+const repo = repoFromUrl(sh('git', ['remote', 'get-url', 'origin']).out);
+const priv = repo ? sh('gh', ['repo', 'view', repo, '--json', 'isPrivate', '-q', '.isPrivate']) : { out: '' };
 if (priv.out.trim() !== 'true') {
-    console.error('Refusing: this repo is not private (or gh cannot read it). Private repos only; never register a runner on a public repo.');
+    console.error(`Refusing: origin (${repo || 'none'}) is not a private GitHub repo you can read. Private repos only; never register a runner on a public repo.`);
     process.exit(1);
 }
-const repo = sh('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']).out.trim();
+// Pin gh to origin, so `gh secret set` and `gh workflow run` never target the engine.
+if (!check && sh('git', ['config', '--get', 'remote.origin.gh-resolved']).out.trim() !== 'base') sh('git', ['config', 'remote.origin.gh-resolved', 'base']);
 if (check) console.log('--check: reports only, writes nothing.');
 
 // 1. prerequisites
