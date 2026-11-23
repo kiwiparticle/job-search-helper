@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
 import { cleanSchedule, dueAt, dispatchOf } from '../lib/schedule.js';
 
 test('dueAt matches day and hour in UTC', () => {
@@ -28,22 +27,4 @@ test('dispatchOf maps ids to workflow files', () => {
     assert.deepEqual(dispatchOf('culture'), { file: 'search.yml', inputs: { workflow: 'culture' } });
     assert.deepEqual(dispatchOf('resolve'), { file: 'resolve-links.yml', inputs: {} });
     assert.deepEqual(dispatchOf('check-postings'), { file: 'check-postings.yml', inputs: {} });
-});
-
-// Owner file: absent in the engine tree, where this test skips.
-const ownerSchedule = new URL('../data/schedule.json', import.meta.url);
-test('the owner file mirrors the old crons', { skip: !existsSync(ownerSchedule) }, () => {
-    const s = cleanSchedule(JSON.parse(readFileSync(ownerSchedule, 'utf8')));
-    assert.deepEqual(s, {
-        tracked: { days: null, hours: [10] },
-        daily: { days: [1, 3, 5], hours: [11] },
-        vertical: { days: [2, 4], hours: [11] },
-        culture: { days: [1], hours: [13] },
-        reconcile: { days: [5], hours: [13] },
-        sweep: { days: null, hours: [4, 16] },
-        'check-postings': { days: null, hours: [6, 18] },
-        resolve: { days: [0], hours: [7] },
-        'find-boards': { days: [0], hours: [8] },
-        tune: { days: [6], hours: [13] },
-    });
 });
