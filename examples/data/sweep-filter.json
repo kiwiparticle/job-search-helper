@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "titleMust": [],
+  "titleMustNot": ["QA", "SDET", "Data Scientist", "Embedded", "Firmware", "Sales Engineer", "Support Engineer", "Engineering Manager", "Director"],
+  "titleNonSoftware": ["Mechanical", "Electrical", "Hardware", "Manufacturing", "Civil"],
+  "softwareWords": ["Software", "SWE", "Developer", "Frontend", "Front End", "Full Stack", "Full-Stack", "Fullstack", "Web", "Platform", "Application"],
+  "titleDrop": ["intern", "internship", "junior", "apprentice", "co-op", "coop"],
+  "levels": [],
+  "locations": []
+}

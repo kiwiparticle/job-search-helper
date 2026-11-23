@@ -1,0 +1,5 @@
+{
+  "skip": ["Pay too low", "Not remote", "Wrong stack", "Too much on-call", "Domain not for me", "Level too low", "No longer listed"],
+  "save": ["Great domain", "Good pay", "Small team", "Strong culture", "Tech fit"],
+  "ruleOut": ["Weak culture", "Pay too low", "Not remote", "Domain not for me", "Unstable"]
+}

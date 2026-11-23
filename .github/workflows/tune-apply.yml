@@ -1,0 +1,60 @@
+name: tune-apply
+
+run-name: tune-apply ${{ inputs.id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      id: { required: true, description: 'Tune proposal to apply (tune:<at>:<n>)' }
+
+# Script only, no model. Makes the one find/replace the owner approved, commits it, then marks it applied.
+# The edit refuses (proposal goes `stale`) when the file changed since the tune run proposed it.
+jobs:
+  apply:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 15
+    permissions: { contents: write }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - name: Edit, push, then mark it applied
+        env:
+          GH_TOKEN: '${{ github.token }}'
+          TUNE_ID: ${{ inputs.id }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          [[ "$TUNE_ID" =~ ^tune:[0-9TZ:.-]+:[0-9]{1,2}$ ]] || { echo "bad id"; exit 1; }
+          git config user.name "job-search bot"
+          git config user.email "actions@users.noreply.github.com"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # If main moved meanwhile, reset to it and make the edit again on top (it refuses if the file itself changed).
+          ok=0
+          for i in 1 2 3 4; do
+            out=$(node bin/tune-apply.js edit "$TUNE_ID") || exit 1
+            if [ "$out" = done ] || git diff --quiet; then ok=1; break; fi
+            git add instructions.md instructions-local.md data/sweep-filter.json
+            git commit -qm "tune: apply $TUNE_ID"
+            if git push -q "$remote" HEAD:main; then ok=1; break; fi
+            git fetch -q "$remote" main || { sleep $((i * 5)); continue; }
+            git reset -q --hard FETCH_HEAD
+            sleep $((i * 5))
+          done
+          [ "$ok" = 1 ] || { echo "could not push the change"; exit 1; }
+          node bin/tune-apply.js mark "$TUNE_ID"

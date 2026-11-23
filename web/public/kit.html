@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Application kits</title>
+<script>
+  // Old kit links (kit.html?dir=applications/x or kit.html?company=…) now live in the app's #/kits routes.
+  var p = new URLSearchParams(location.search), dir = p.get('dir');
+  p.delete('dir');
+  location.replace('./#/kits' + (dir ? '/' + encodeURIComponent(dir.replace(/^applications\//, '')) : '') + (p.toString() ? '?' + p : ''));
+</script>

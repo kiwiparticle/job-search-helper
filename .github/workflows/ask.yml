@@ -1,0 +1,156 @@
+name: ask
+
+run-name: ask ${{ inputs.company }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      company: { required: true }
+      model: { default: claude, description: 'both, or a model id from data/models.json' }
+      question: { required: true }
+      at: { required: true, description: 'ISO time fixed when the page dispatched; names the run in D1' }
+
+# Three jobs. Only prepare and finish hold the Cloudflare token or the job token. The model job reads
+# untrusted pages with neither. The boundary is the trusted jobs: each wipes the workspace first (a model
+# job on this one runner may have written anything there, .git included), checks out fresh, and filters the
+# model's artifact itself with its own copy of collect-output.sh. The model job's collector copy is hygiene only.
+
+jobs:
+  prepare:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      models: ${{ steps.p.outputs.models }}
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - id: p
+        env:
+          COMPANY: ${{ inputs.company }}
+          QUESTION: ${{ inputs.question }}
+          MODEL: ${{ inputs.model }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          # both = whichever of Claude and Codex are on in data/models.json.
+          if [ "$MODEL" = both ]; then models=""; for m in claude codex; do node bin/model-info.js "$m" > /dev/null && models="$models $m"; done; [ -n "$models" ] || { echo "Claude and Codex are both off"; exit 1; }
+          else node bin/model-info.js "$MODEL" > /dev/null || { echo "unknown or disabled model"; exit 1; }; models="$MODEL"; fi
+          echo "models=$models" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/ctx"
+          # Each model gets its own folder and never sees the other's answer.
+          for m in $models; do node bin/ask-prepare.js "$RUNNER_TEMP/ctx/$m"; done
+      - uses: actions/upload-artifact@v7
+        with: { name: ask-ctx, path: '${{ runner.temp }}/ctx', include-hidden-files: true, if-no-files-found: error }
+
+  model:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    needs: prepare
+    runs-on: self-hosted
+    timeout-minutes: 110
+    permissions: { contents: read }
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: ask-ctx, path: '${{ runner.temp }}/ctx' }
+      - name: Answer
+        env:
+          MODELS: ${{ needs.prepare.outputs.models }}
+        # One step: what the model writes to GITHUB_ENV or GITHUB_PATH only takes effect after it ends.
+        run: |
+          # Wrapped so bash has parsed the whole step before the model starts; the step script sits in a folder the model can write.
+          answer_main() {
+          cp bin/collect-output.sh "$RUNNER_TEMP/collect-output.sh"; chmod 555 "$RUNNER_TEMP/collect-output.sh"
+          for m in $MODELS; do bin/run-model.sh "$m" prompts/ask.md "$RUNNER_TEMP/ctx/$m" & done
+          wait
+          for m in $MODELS; do
+            /usr/bin/env -i /bin/bash "$RUNNER_TEMP/collect-output.sh" "$RUNNER_TEMP/ctx/$m" "$RUNNER_TEMP/out/$m" answer.md ledger-patch.json status.txt || true
+          done
+          }
+          answer_main; exit
+      - uses: actions/upload-artifact@v7
+        with: { name: ask-out, path: '${{ runner.temp }}/out', include-hidden-files: true, if-no-files-found: error }
+
+  finish:
+    needs: [prepare, model]
+    if: >-
+      !cancelled() && vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.result == 'success' && needs.model.result == 'success')
+    runs-on: self-hosted
+    timeout-minutes: 15
+    permissions: { contents: write }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      # context.json comes only from prepare's artifact; the model's artifact goes to raw/ and is filtered below.
+      - uses: actions/download-artifact@v8
+        with: { name: ask-ctx, path: '${{ runner.temp }}/ctx' }
+      - uses: actions/download-artifact@v8
+        with: { name: ask-out, path: '${{ runner.temp }}/raw' }
+      - name: Save to the thread
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPANY: ${{ inputs.company }}
+          MODEL: ${{ inputs.model }}
+          MODELS: ${{ needs.prepare.outputs.models }}
+          ASK_AT: ${{ inputs.at }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          git config user.name "job-search bot"
+          git config user.email "actions@users.noreply.github.com"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          targets=""
+          for m in $MODELS; do
+            # The trusted collector from this fresh checkout is the real filter: named files only, size cap, no links.
+            /usr/bin/env -i /bin/bash bin/collect-output.sh "$RUNNER_TEMP/raw/$m" "$RUNNER_TEMP/fin/$m" answer.md ledger-patch.json status.txt || true
+            cp "$RUNNER_TEMP/ctx/$m/context.json" "$RUNNER_TEMP/fin/$m/context.json"
+            targets="$targets $m=$RUNNER_TEMP/fin/$m"
+          done
+          # If main moved meanwhile, reset to it and append the answer again on top (D1 writes are redo-safe).
+          for i in 1 2 3 4; do
+            node bin/ask-finish.js $targets || exit 1
+            git add asks
+            git commit -qm "ask: $COMPANY ($MODEL)" || exit 0
+            git push -q "$remote" HEAD:main && exit 0
+            git fetch -q "$remote" main || { sleep $((i * 5)); continue; }
+            git reset -q --hard FETCH_HEAD
+            sleep $((i * 5))
+          done
+          exit 1

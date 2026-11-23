@@ -1,0 +1,109 @@
+name: find-boards
+
+run-name: find-boards
+
+on:
+  workflow_dispatch: {}
+
+concurrency: { group: find-boards, cancel-in-progress: false }
+
+# Finds the job board behind careers pages drawn by script. Three jobs, like triage.yml: only prepare and finish hold
+# the Cloudflare token. Render opens untrusted pages in headless Chromium with no token and hands back only the URLs
+# each page requested or linked to; finish parses those itself, checks the board's API answers, and sets jobsUrl.
+
+jobs:
+  prepare:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      count: ${{ steps.p.outputs.count }}
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - id: p
+        name: List pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          node bin/find-boards-prepare.js "$RUNNER_TEMP/ctx" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with: { name: find-boards-ctx, path: '${{ runner.temp }}/ctx', if-no-files-found: error }
+
+  render:
+    needs: prepare
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.outputs.count != '0')
+    runs-on: self-hosted
+    timeout-minutes: 45
+    permissions: { contents: read }
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: find-boards-ctx, path: '${{ runner.temp }}/ctx' }
+      - name: Open pages
+        run: |
+          # Playwright from the lockfile; Chromium from the owner's ~/.cache/ms-playwright.
+          pnpm install --frozen-lockfile --ignore-scripts > /dev/null
+          node bin/find-boards-render.mjs "$RUNNER_TEMP/ctx" "$RUNNER_TEMP/out"
+      - uses: actions/upload-artifact@v7
+        with: { name: find-boards-out, path: '${{ runner.temp }}/out', if-no-files-found: error }
+
+  finish:
+    needs: [prepare, render]
+    if: >-
+      !cancelled() && vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.result == 'success' && needs.render.result == 'success')
+    runs-on: self-hosted
+    timeout-minutes: 15
+    permissions: { contents: read }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: find-boards-ctx, path: '${{ runner.temp }}/ctx' }
+      - uses: actions/download-artifact@v8
+        with: { name: find-boards-out, path: '${{ runner.temp }}/raw' }
+      - name: Save boards
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          /usr/bin/env -i /bin/bash bin/collect-output.sh "$RUNNER_TEMP/raw" "$RUNNER_TEMP/fin" observed.json || true
+          node bin/find-boards-finish.js "$RUNNER_TEMP/ctx" "$RUNNER_TEMP/fin"

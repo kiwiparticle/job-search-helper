@@ -1,0 +1,290 @@
+name: search
+
+run-name: ${{ inputs.workflow == 'job' && format('job {0} | {1}', inputs.job_company, inputs.job_role) || inputs.workflow == 'directed' && format('directed {0}', inputs.topic) || format('search {0}{1}', inputs.workflow, inputs.chain != '' && format(' (judging all, {0} more batches after this)', inputs.chain) || '') }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow:
+        type: choice
+        options: [daily, tracked, links, culture, vertical, reconcile, job, directed]
+        default: daily
+      topic:
+        description: Vertical to sweep for a vertical run (optional), or the owner's direction for a directed run
+        required: false
+      job_company:
+        description: Company of the one job, for a job run
+        required: false
+      job_role:
+        required: false
+      job_url:
+        required: false
+      sweep_roles:
+        description: Tracked run only, how many unjudged board roles to judge (1-30, default 30)
+        required: false
+      chain:
+        description: Tracked run only, how many more batches to start after this one while unjudged roles remain
+        required: false
+      searchers:
+        description: Model ids that search, comma separated (optional; default from data/models.json)
+        required: false
+      reviewer:
+        description: Model id that reviews the finds, `none` for no review, or `each` for each searcher to review the other (optional; default from data/models.json)
+        required: false
+
+permissions: { contents: read }
+
+# No concurrency group: GitHub cancels a pending job when a newer one queues, which would drop a run.
+# The single self-hosted runner already runs one job at a time, and finish-push.sh handles push races.
+
+jobs:
+  setup:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    permissions: { contents: read, actions: read }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    outputs:
+      run: ${{ steps.s.outputs.run }}
+      workflow: ${{ steps.s.outputs.workflow }}
+      run_date: ${{ steps.s.outputs.run_date }}
+      searchers: ${{ steps.route.outputs.searchers }}
+      reviewers: ${{ steps.route.outputs.reviewers }}
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - name: Restore original preparation on retry
+        if: github.run_attempt > 1
+        uses: actions/download-artifact@v8
+        with: { pattern: 'prep-*', path: '.preparation' }
+      - id: s
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTION_ID: ${{ github.run_id }}
+          WF_INPUT: ${{ inputs.workflow }}
+          TOPIC: ${{ inputs.topic }}
+          JOB_COMPANY: ${{ inputs.job_company }}
+          JOB_ROLE: ${{ inputs.job_role }}
+          JOB_URL: ${{ inputs.job_url }}
+          SWEEP_ROLES: ${{ inputs.sweep_roles }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          wf=${WF_INPUT:-daily}
+          case "$wf" in daily|tracked|links|culture|vertical|reconcile|job|directed) ;; *) echo "bad workflow"; exit 1 ;; esac
+          # Time suffix: a second run of the same workflow on the same day gets its own folder.
+          # Stable across retries of this workflow execution; HHMMSS fits the existing regex.
+          created=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          run_date=$(date -u -d "$created" +%F); run=$run_date-$wf-$(date -u -d "$created" +%H%M%S)
+          if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+            mkdir -p "runs/$run"
+            for f in context.json base.jsonl company-state.jsonl; do
+              test -f ".preparation/prep-$f/$f" || { echo "missing preparation artifact: start a new run"; exit 1; }
+              cp ".preparation/prep-$f/$f" "runs/$run/$f"
+            done
+          fi
+          node bin/prepare.js "runs/$run" "$wf" "$run_date"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "workflow=$wf" >> "$GITHUB_OUTPUT"
+          echo "run_date=$run_date" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: context
+          overwrite: true
+          path: |
+            runs/${{ steps.s.outputs.run }}/context.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: run-base
+          overwrite: true
+          path: runs/${{ steps.s.outputs.run }}/base.jsonl
+      - uses: actions/upload-artifact@v7
+        with:
+          name: company-state
+          overwrite: true
+          path: runs/${{ steps.s.outputs.run }}/company-state.jsonl
+      - if: github.run_attempt == 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: prep-context.json
+          path: runs/${{ steps.s.outputs.run }}/context.json
+      - if: github.run_attempt == 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: prep-base.jsonl
+          path: runs/${{ steps.s.outputs.run }}/base.jsonl
+      - if: github.run_attempt == 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: prep-company-state.jsonl
+          path: runs/${{ steps.s.outputs.run }}/company-state.jsonl
+      # Last on purpose: test/searchSetup.test.js cuts step s out by the text before the first upload step.
+      - id: route
+        env:
+          RUN_DIR: runs/${{ steps.s.outputs.run }}
+          WORKFLOW: ${{ steps.s.outputs.workflow }}
+          SEARCHERS: ${{ inputs.searchers }}
+          REVIEWER: ${{ inputs.reviewer }}
+        run: |
+          node bin/route.js "$RUN_DIR" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: route
+          overwrite: true
+          path: |
+            runs/${{ steps.s.outputs.run }}/route.json
+            runs/${{ steps.s.outputs.run }}/context-*.json
+          if-no-files-found: ignore
+
+  search:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    needs: setup
+    runs-on: self-hosted
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{ fromJson(needs.setup.outputs.searchers) }}
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      # Models read the workspace; keep the job token out of .git/config.
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: context, path: 'runs/${{ needs.setup.outputs.run }}' }
+      - uses: actions/download-artifact@v8
+        with: { name: company-state, path: 'runs/${{ needs.setup.outputs.run }}' }
+      # A local model's trimmed context-<id>.json arrives next to context.json; run-model.sh prefers it.
+      - uses: actions/download-artifact@v8
+        with: { pattern: route, merge-multiple: true, path: 'runs/${{ needs.setup.outputs.run }}' }
+      - name: Search
+        env:
+          RUN_DIR: runs/${{ needs.setup.outputs.run }}
+          COMPANY_STATE: runs/${{ needs.setup.outputs.run }}/company-state.jsonl
+          WORKFLOW: ${{ needs.setup.outputs.workflow }}
+          RUN_DATE: ${{ needs.setup.outputs.run_date }}
+        # `; exit` on the same line: the step script is writable by the model, so nothing may be read after it returns.
+        run: |
+          bin/run-model.sh ${{ matrix.model }} prompts/search.md "$PWD/$RUN_DIR/${{ matrix.model }}"; exit
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: 'out-${{ matrix.model }}', path: 'runs/${{ needs.setup.outputs.run }}/${{ matrix.model }}' }
+
+  review:
+    needs: [setup, search]
+    if: >-
+      always() && vars.JOB_SEARCH_ENABLED == 'true' && (needs.setup.result == 'success' && needs.setup.outputs.reviewers != '[]')
+    runs-on: self-hosted
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{ fromJson(needs.setup.outputs.reviewers) }}
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: company-state, path: 'runs/${{ needs.setup.outputs.run }}' }
+      # Pattern mode: with no route artifact, review-input falls back to the legacy route.
+      - uses: actions/download-artifact@v8
+        with: { pattern: route, merge-multiple: true, path: 'runs/${{ needs.setup.outputs.run }}' }
+      # All artifacts, like finish: a pattern matching one artifact (one searcher) unpacks it without its out-<id> folder.
+      - uses: actions/download-artifact@v8
+        with: { path: '${{ runner.temp }}/a' }
+      - name: Lay out outputs
+        env: { RUN_DIR: 'runs/${{ needs.setup.outputs.run }}', A: '${{ runner.temp }}/a' }
+        run: |
+          for d in "$A"/out-*; do [ -d "$d" ] && mv "$d" "$RUN_DIR/${d##*/out-}"; done
+          rm -rf "$A"
+          ls "$RUN_DIR"
+      - id: input
+        env:
+          RUN_DIR: runs/${{ needs.setup.outputs.run }}
+        run: |
+          set -e
+          rm -rf .review && mkdir -p .review
+          n=$(node bin/review-input.js "$RUN_DIR" ${{ matrix.model }} "$PWD/.review/input.json")
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+      - name: Review
+        if: steps.input.outputs.count > 0
+        env:
+          COMPANY_STATE: runs/${{ needs.setup.outputs.run }}/company-state.jsonl
+          WORKFLOW: ${{ needs.setup.outputs.workflow }}
+          RUN_DATE: ${{ needs.setup.outputs.run_date }}
+        run: |
+          # Wrapped so bash has parsed the whole step before the model starts; the step script sits in a folder the model can write.
+          review_main() {
+          export INPUT="$PWD/.review/input.json"
+          bin/run-model.sh ${{ matrix.model }} prompts/review.md "$PWD/.review" "$PWD/.review/status-${{ matrix.model }}.txt"
+          }
+          review_main; exit
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.input.outputs.count > 0
+        # .review is a hidden folder; upload-artifact skips those unless told otherwise.
+        with: { name: 'review-${{ matrix.model }}', path: '.review/*${{ matrix.model }}*', include-hidden-files: true, if-no-files-found: error }
+
+  finish:
+    needs: [setup, search, review]
+    if: >-
+      always() && vars.JOB_SEARCH_ENABLED == 'true' && (needs.setup.result == 'success')
+    runs-on: self-hosted
+    permissions: { contents: write, actions: write }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      # A model job may have written anything into this workspace, .git included: start from nothing.
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { path: '${{ runner.temp }}/a' }
+      - name: Finish and push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ needs.setup.outputs.run }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          bin/finish-push.sh "runs/$RUN" "$RUNNER_TEMP/a" "run: $RUN"
+      - name: Chain next batch
+        if: inputs.chain != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ needs.setup.outputs.run }}
+          CHAIN: ${{ inputs.chain }}
+        run: node bin/chain-next.js "runs/$RUN" "$CHAIN"

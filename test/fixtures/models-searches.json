@@ -1,0 +1,33 @@
+{
+  "raw": {
+    "models": [
+      { "id": "claude", "label": "Claude", "runner": "claude" },
+      { "id": "codex", "label": "Codex", "runner": "codex" },
+      { "id": "qwen", "label": "Qwen", "runner": "opencode", "model": "llama-local/qwen" },
+      { "id": "off", "label": "Off", "runner": "claude", "enabled": false }
+    ],
+    "defaults": {
+      "search": { "searchers": ["claude", "codex"], "reviewer": null },
+      "ask": { "model": "both" },
+      "fill": { "model": "claude" },
+      "searches": {
+        "culture": { "searchers": ["claude"], "reviewer": "none" },
+        "vertical": { "searchers": ["qwen", "claude"], "reviewer": "each" },
+        "links": { "searchers": ["off"], "reviewer": null },
+        "tracked": { "searchers": ["claude", "codex", "qwen"], "reviewer": null },
+        "reconcile": { "searchers": ["claude"], "reviewer": "ghost" },
+        "job": { "searchers": ["claude", "claude"], "reviewer": null },
+        "Bad_Key": { "searchers": ["claude"], "reviewer": null }
+      }
+    }
+  },
+  "cleaned": {
+    "search": { "searchers": ["claude", "codex"], "reviewer": null },
+    "ask": { "model": "both" },
+    "fill": { "model": "claude" },
+    "searches": {
+      "culture": { "searchers": ["claude"], "reviewer": "none" },
+      "vertical": { "searchers": ["qwen", "claude"], "reviewer": null }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+    "who": "A mid-level to senior full-stack software engineer",
+    "levels": "Mid-level, Senior or Staff individual-contributor work on web products",
+    "levelsOut": "junior or entry level, intern, people-management-only",
+    "location": "a remote or hybrid job in the United States",
+    "stack": "TypeScript, React, Node, PostgreSQL, REST and GraphQL APIs, CI/CD and testing",
+    "strengths": "building product features end to end, from the database to the screen",
+    "offStack": "embedded or firmware, mobile-only, data science, security-only roles",
+    "domainsFirst": "Developer tools",
+    "fitRubric": "- 5: apply now. Full-stack or product work in the preferred stack, strong evidence, nothing against it.\n- 4: worth applying. Right kind of work with one minor concern.\n- 3: maybe. One real concern a recruiter screen could settle.\n- 2: unlikely. Mostly off stack, a poor domain, or pay that only just reaches the floor.\n- 1: skip. A hard requirement fails or the work is clearly not a fit.",
+    "payFloor": 140000,
+    "currency": "USD"
+}

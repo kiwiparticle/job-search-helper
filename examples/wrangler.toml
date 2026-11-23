@@ -1,0 +1,8 @@
+name = "job-search"
+compatibility_date = "2026-11-13"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "job-search"
+database_id = "REPLACE_WITH_D1_ID"

@@ -1,0 +1,37 @@
+{
+  "name": "job-search",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/ && vitest run",
+    "build": "tsc -p web && vite build",
+    "deploy": "vite build && npx --yes wrangler@4 pages deploy dist --branch main --commit-dirty=true",
+    "preview": "vite build && node dev/preview-server.mjs"
+  },
+  "devDependencies": {
+    "@base-ui/react": "1.9.0",
+    "@fontsource-variable/ibm-plex-sans": "5.3.0",
+    "@tanstack/react-query": "5.105.0",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "30.1.3",
+    "playwright": "1.63.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-markdown": "10.1.0",
+    "react-router": "8.5.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5",
+    "wrangler": "^4.164.0"
+  },
+  "dependencies": {
+    "@tanstack/query-sync-storage-persister": "5.106.1",
+    "@tanstack/react-query-persist-client": "5.106.1",
+    "docx-preview": "0.4.1"
+  }
+}

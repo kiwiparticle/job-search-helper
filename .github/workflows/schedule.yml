@@ -1,0 +1,24 @@
+name: schedule
+
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  tick:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 5
+    permissions: { actions: write, contents: read }
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - name: Dispatch what data/schedule.json says is due
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          export TICK_AT=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          node bin/schedule-tick.js

@@ -1,0 +1,15 @@
+.superpowers/
+node_modules/
+*:Zone.Identifier
+.review/
+.seed/
+runs/**/log-*.txt
+.ask/
+dist/
+.ask-claude/
+.ask-codex/
+runs/*/base.jsonl
+
+runs/*/company-state.jsonl
+.preparation/
+node_modules

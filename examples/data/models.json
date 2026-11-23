@@ -1,0 +1,11 @@
+{
+  "models": [
+    { "id": "claude", "label": "Claude", "runner": "claude" },
+    { "id": "codex", "label": "Codex", "runner": "codex" }
+  ],
+  "defaults": {
+    "search": { "searchers": ["claude", "codex"], "reviewer": "none" },
+    "ask": { "model": "both" },
+    "fill": { "model": "claude" }
+  }
+}

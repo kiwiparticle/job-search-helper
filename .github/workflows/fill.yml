@@ -1,0 +1,128 @@
+name: fill
+
+run-name: fill ${{ inputs.company }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      company: { required: true }
+      model: { default: claude, description: 'a model id from data/models.json' }
+      at: { required: true, description: 'ISO time fixed when the page dispatched; names the run in D1' }
+
+# Three jobs. Only prepare and finish hold the Cloudflare token. The model job holds neither it nor the job token.
+# Fill writes only to D1, so finish has nothing to commit. Trusted jobs wipe the workspace first and filter the
+# model's artifact with their own collector; see ask.yml.
+
+jobs:
+  prepare:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      model: ${{ steps.m.outputs.model }}
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - id: m
+        name: Check model
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          node bin/model-info.js "$MODEL" > /dev/null || { echo "unknown or disabled model"; exit 1; }
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+      - name: Prepare
+        env:
+          COMPANY: ${{ inputs.company }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          node bin/fill-prepare.js "$RUNNER_TEMP/ctx" "$COMPANY"
+      - uses: actions/upload-artifact@v7
+        with: { name: fill-ctx, path: '${{ runner.temp }}/ctx', include-hidden-files: true, if-no-files-found: error }
+
+  model:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    needs: prepare
+    runs-on: self-hosted
+    timeout-minutes: 110
+    permissions: { contents: read }
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: fill-ctx, path: '${{ runner.temp }}/ctx' }
+      - name: Look up facts
+        env:
+          MODEL: ${{ needs.prepare.outputs.model }}
+        # One step: what the model writes to GITHUB_ENV or GITHUB_PATH only takes effect after it ends.
+        run: |
+          # Wrapped so bash has parsed the whole step before the model starts; the step script sits in a folder the model can write.
+          fill_main() {
+          cp bin/collect-output.sh "$RUNNER_TEMP/collect-output.sh"; chmod 555 "$RUNNER_TEMP/collect-output.sh"
+          bin/run-model.sh "$MODEL" prompts/fill.md "$RUNNER_TEMP/ctx"
+          /usr/bin/env -i /bin/bash "$RUNNER_TEMP/collect-output.sh" "$RUNNER_TEMP/ctx" "$RUNNER_TEMP/out" facts.json status.txt || true
+          }
+          fill_main; exit
+      - uses: actions/upload-artifact@v7
+        with: { name: fill-out, path: '${{ runner.temp }}/out', include-hidden-files: true, if-no-files-found: error }
+
+  finish:
+    needs: [prepare, model]
+    if: >-
+      !cancelled() && vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.result == 'success' && needs.model.result == 'success')
+    runs-on: self-hosted
+    timeout-minutes: 15
+    permissions: { contents: read }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: fill-ctx, path: '${{ runner.temp }}/ctx' }
+      - uses: actions/download-artifact@v8
+        with: { name: fill-out, path: '${{ runner.temp }}/raw' }
+      - name: Save facts
+        env:
+          FILL_AT: ${{ inputs.at }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          # Named files only from the model's artifact, then the trusted context.json last so it cannot be overwritten.
+          /usr/bin/env -i /bin/bash bin/collect-output.sh "$RUNNER_TEMP/raw" "$RUNNER_TEMP/fin" facts.json status.txt || true
+          cp "$RUNNER_TEMP/ctx/context.json" "$RUNNER_TEMP/fin/context.json"
+          node bin/fill-finish.js "$RUNNER_TEMP/fin"

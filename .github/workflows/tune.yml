@@ -1,0 +1,124 @@
+name: tune
+
+run-name: tune
+
+on:
+  workflow_dispatch: {}
+
+# Three jobs, like fill.yml. Only prepare and finish hold the Cloudflare token; the model job holds no token.
+# Prepare collects the owner's Skip/Save reasons since the last tune; with none, the model never runs.
+# Finish saves the model's proposals as `tune` rows; nothing is committed until the owner applies one (tune-apply.yml).
+
+jobs:
+  prepare:
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 10
+    permissions: { contents: read, actions: read }
+    outputs:
+      model: ${{ steps.p.outputs.model }}
+      count: ${{ steps.p.outputs.count }}
+      at: ${{ steps.p.outputs.at }}
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - id: p
+        name: Prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          # The workflow's creation time names the run, so a retried finish records nothing twice.
+          at=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          [ -n "$at" ] || { echo "no run creation time"; exit 1; }
+          echo "at=$at" >> "$GITHUB_OUTPUT"
+          node bin/tune-prepare.js "$RUNNER_TEMP/ctx" >> "$GITHUB_OUTPUT"
+      - name: Check model
+        env:
+          MODEL: ${{ steps.p.outputs.model }}
+        run: |
+          node bin/model-info.js "$MODEL" > /dev/null || { echo "unknown or disabled model"; exit 1; }
+      - uses: actions/upload-artifact@v7
+        with: { name: tune-ctx, path: '${{ runner.temp }}/ctx', include-hidden-files: true, if-no-files-found: error }
+
+  model:
+    needs: prepare
+    if: >-
+      vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.outputs.count != '0')
+    runs-on: self-hosted
+    timeout-minutes: 110
+    permissions: { contents: read }
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: tune-ctx, path: '${{ runner.temp }}/ctx' }
+      - name: Propose rule changes
+        env:
+          MODEL: ${{ needs.prepare.outputs.model }}
+        run: |
+          # Wrapped so bash has parsed the whole step before the model starts; the step script sits in a folder the model can write.
+          tune_main() {
+          cp bin/collect-output.sh "$RUNNER_TEMP/collect-output.sh"; chmod 555 "$RUNNER_TEMP/collect-output.sh"
+          bin/run-model.sh "$MODEL" prompts/tune.md "$RUNNER_TEMP/ctx"
+          /usr/bin/env -i /bin/bash "$RUNNER_TEMP/collect-output.sh" "$RUNNER_TEMP/ctx" "$RUNNER_TEMP/out" proposals.json status.txt || true
+          }
+          tune_main; exit
+      - uses: actions/upload-artifact@v7
+        with: { name: tune-out, path: '${{ runner.temp }}/out', include-hidden-files: true, if-no-files-found: error }
+
+  finish:
+    needs: [prepare, model]
+    if: >-
+      !cancelled() && vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.result == 'success' && needs.model.result == 'success')
+    runs-on: self-hosted
+    timeout-minutes: 15
+    permissions: { contents: read }
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: 'false'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Clean workspace
+        run: |
+          [ -L "$GITHUB_WORKSPACE" ] && { echo "workspace is a symlink"; exit 1; }
+          chmod -R u+rwX "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: tune-out, path: '${{ runner.temp }}/raw' }
+      - name: Save proposals
+        env:
+          TUNE_AT: ${{ needs.prepare.outputs.at }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: |
+          /usr/bin/env -i /bin/bash bin/collect-output.sh "$RUNNER_TEMP/raw" "$RUNNER_TEMP/fin" proposals.json status.txt || true
+          node bin/tune-finish.js "$RUNNER_TEMP/fin"
