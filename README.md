@@ -21,9 +21,9 @@ cd job-search-helper
 claude
 ```
 
-Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, bindings, tokens). You type every secret yourself; Claude never sees one. `node bin/setup.js --check` is a dry run that changes nothing.
+Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). You type every secret yourself; Claude never sees one. `node bin/setup.js --check` is a dry run that changes nothing.
 
-Nothing runs until the repo variable `JOB_SEARCH_ENABLED` is set, which setup does at the end.
+Setup sets the repo variable `JOB_SEARCH_ENABLED` in step 5, before the runner and secrets exist; nothing runs without it. Runs start once the runner and secrets are in place.
 
 ## Updating
 
@@ -56,7 +56,7 @@ Your data (companies, postings, applications) lives in D1, and you change it on 
 
 ## What runs
 
-In a new copy only `tracked` search and `sweep` run on their own. The other workflows run when you add them to `data/schedule.json` (times are UTC) or start them by hand from the page; the table's times are suggestions. Everything runs on a self-hosted GitHub Actions runner on your machine, using your own Claude and Codex logins. Nothing runs while the machine is off. Queued jobs wait for it.
+In a new copy `tracked` search, `daily` search (Mon, Wed, Fri) and `sweep` run on their own. The other workflows run when you add them to `data/schedule.json` (times are UTC) or start them by hand from the page; the table's times are suggestions. Everything runs on a self-hosted GitHub Actions runner on your machine, using your own Claude and Codex logins. Nothing runs while the machine is off. Queued jobs wait for it.
 
 | Workflow | Suggested schedule (set in `data/schedule.json`) | Does |
 | --- | --- | --- |

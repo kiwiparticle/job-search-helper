@@ -73,3 +73,20 @@ test('short uppercase terms match case-sensitively; a clean tree exits 0', () =>
     assert.equal(r.status, 1);
     assert.match(r.stdout, /a\.txt:1: ZZ/);
 });
+
+test('a term in an unpushed commit message is flagged', () => {
+    const root = mkdtempSync(join(tmpdir(), 'privacy-git-'));
+    const data = join(root, 'data');
+    const tree = join(root, 'tree');
+    mkdirSync(data);
+    mkdirSync(tree);
+    writeFileSync(join(data, 'privacy-terms.txt'), 'Jane Q Owner\n');
+    writeFileSync(join(tree, 'a.txt'), 'clean\n');
+    const git = (...a) => spawnSync('git', ['-C', tree, '-c', 'user.name=T', '-c', 'user.email=t@example.com', ...a], { encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '.');
+    git('commit', '-q', '-m', 'Fix\n\nAsked by Jane Q Owner');
+    const r = spawnSync('node', [script, tree], { encoding: 'utf8', env: { ...process.env, PRIVACY_DATA: data } });
+    assert.equal(r.status, 1);
+    assert.match(r.stdout, /^commit [0-9a-f]{12}:3: Jane Q Owner$/m);
+});

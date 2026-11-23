@@ -203,7 +203,7 @@ sudo ~/actions-runner/svc.sh status|start|stop   # each runner folder has its ow
 - Hover, tab clicks, scrolled states and run cards need the same throwaway script (`locator.hover()`, `getByRole('tab').click()`, `page.route('**/api/status*', …)` for running runs).
 - Page-test quirks: Base UI popups mount late (`await findByRole`), a closing menu blocks a second `userEvent.click` (use `fireEvent.click`), toasts have `role="dialog"`.
 - Dependency versions: newest release at least two weeks old.
-- Privacy: the owner's email never goes in code or to outside services. Secrets only through `gh secret set`, `gh variable set` or `wrangler pages secret put` in the owner's terminal.
+- Privacy: the owner's email never goes in code or to outside services. Secrets only through `gh secret set` or `wrangler pages secret put` in the owner's terminal; variables through `gh api -X POST repos/<repo>/actions/variables -f name=… -f value=…` (old gh has no `gh variable`).
 
 ## Gotchas that have bitten before
 

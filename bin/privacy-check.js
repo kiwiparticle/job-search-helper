@@ -90,6 +90,13 @@ walk(dir);
 if (existsSync(join(dir, '.git'))) {
     const log = execFileSync('git', ['-C', dir, 'log', '--format=%an %ae'], { encoding: 'utf8' });
     scan('git log', log);
+    // Messages of commits not yet pushed (all commits when there is no upstream).
+    const git = (...a) => execFileSync('git', ['-C', dir, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    let range = [];
+    try { git('rev-parse', '--abbrev-ref', '@{u}'); range = ['@{u}..HEAD']; } catch { /* no upstream */ }
+    let shas = [];
+    try { shas = git('rev-list', ...(range.length ? range : ['HEAD'])).split('\n').filter(Boolean); } catch { /* no commits */ }
+    for (const sha of shas) scan(`commit ${sha.slice(0, 12)}`, git('log', '-1', '--format=%B', sha));
 }
 
 if (hits.length) {

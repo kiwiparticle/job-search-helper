@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { d1IdByName, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, setD1Id } from '../lib/setupSteps.js';
+import { d1IdByName, d1Name, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, setD1Id } from '../lib/setupSteps.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const check = process.argv.includes('--check');
@@ -63,16 +63,18 @@ if (check) console.log('--check: reports only, writes nothing.');
 let d1Id = null;
 {
     const toml = existsSync(tomlPath) ? readFileSync(tomlPath, 'utf8') : '';
+    const db = d1Name(toml);
     if (!toml) skip(3, 'no wrangler.toml (step 2 first)');
+    else if (!db) skip(3, 'no database_name in wrangler.toml');
     else if (!hasPlaceholder(toml)) { d1Id = toml.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1]; say(3, 'ok D1 id in wrangler.toml'); }
-    else if (check) { todo++; say(3, 'would create D1 database job-search, write its id, apply db/schema.sql'); }
+    else if (check) { todo++; say(3, `would create D1 database ${db}, write its id, apply db/schema.sql`); }
     else {
-        sh('npx', ['wrangler', 'd1', 'create', 'job-search']); // fails harmlessly when it already exists
-        d1Id = d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, 'job-search');
+        sh('npx', ['wrangler', 'd1', 'create', db]); // fails harmlessly when it already exists
+        d1Id = d1IdByName(sh('npx', ['wrangler', 'd1', 'list', '--json']).out, db);
         if (!d1Id) skip(3, 'could not read the D1 id: run `npx wrangler d1 list`, put it in wrangler.toml');
         else {
             // schema first: the toml changes only on success, so a re-run finds the DB by name and retries (schema is idempotent)
-            const r = sh('npx', ['wrangler', 'd1', 'execute', 'job-search', '--remote', '--file', 'db/schema.sql']);
+            const r = sh('npx', ['wrangler', 'd1', 'execute', db, '--remote', '--file', 'db/schema.sql']);
             if (r.ok) { writeFileSync(tomlPath, setD1Id(toml, d1Id)); say(3, `done D1 ${d1Id}, schema applied`); }
             else skip(3, `schema failed (re-run to retry): ${r.out.trim().split('\n').pop()}`);
         }
@@ -84,9 +86,14 @@ let d1Id = null;
     const name = pagesName(existsSync(tomlPath) ? readFileSync(tomlPath, 'utf8') : '');
     if (!name) skip(4, 'no name in wrangler.toml');
     else if (hasPagesProject(sh('npx', ['wrangler', 'pages', 'project', 'list', '--json']).out, name)) say(4, `ok Pages project ${name}`);
-    else if (check) { todo++; say(4, `would create Pages project ${name} and deploy once`); }
+    else if (check) { todo++; say(4, `would create Pages project ${name}${existsSync(join(root, 'node_modules')) ? '' : ', run pnpm install --frozen-lockfile'} and deploy once`); }
     else if (!sh('npx', ['wrangler', 'pages', 'project', 'create', name, '--production-branch', 'main']).ok) skip(4, `create it by hand: npx wrangler pages project create ${name} --production-branch main`);
-    else say(4, sh('pnpm', ['run', 'deploy']).ok ? `done created ${name}, deployed` : 'done created; deploy failed, run `pnpm run deploy`');
+    else {
+        // the deploy builds the page, which needs node_modules
+        const deps = existsSync(join(root, 'node_modules')) || sh('pnpm', ['install', '--frozen-lockfile']).ok;
+        if (!deps) say(4, 'done created; `pnpm install --frozen-lockfile` failed, run it, then `pnpm run deploy`');
+        else say(4, sh('pnpm', ['run', 'deploy']).ok ? `done created ${name}, deployed` : 'done created; deploy failed, run `pnpm run deploy`');
+    }
 }
 
 // 5. repo variables via gh api (old gh has no `gh variable`)

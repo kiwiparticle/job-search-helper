@@ -80,8 +80,17 @@ export const useTune = () => useQuery({
 export const useHistory = (companyKey: string) =>
     useQuery({ queryKey: ['history', companyKey], queryFn: () => getLines<HistoryLine>(`/api/history?company=${encodeURIComponent(companyKey)}`) });
 
+// A fresh install has no runs/index.json until its first run: a 404 is just "no runs".
 export const useRuns = () =>
-    useQuery({ queryKey: ['runs'], queryFn: () => getJson<RunSummary[]>('runs/index.json') });
+    useQuery({
+        queryKey: ['runs'],
+        queryFn: async (): Promise<RunSummary[]> => {
+            const res = await fetch(dataUrl('runs/index.json'));
+            if (res.status === 404) return [];
+            if (!res.ok) throw new Error(`runs/index.json: ${res.status}`);
+            return res.json();
+        },
+    });
 
 export const useReport = (run: string | undefined) =>
     useQuery({ queryKey: ['report', run], queryFn: () => getJson<Report>(`runs/${run}/report.json`), enabled: Boolean(run) });

@@ -3,7 +3,7 @@ import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { useAct, useCompanies, useNewQueue, usePostings, useWorking } from './data';
+import { useAct, useCompanies, useNewQueue, usePostings, useRuns, useWorking } from './data';
 import type { Company } from './model';
 import { company, lines } from './test-fixtures';
 import { ToastProvider } from './toast';
@@ -41,6 +41,12 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 const count = (url: string) => calls.filter((c) => c === url).length;
 
 describe('data hooks', () => {
+    test('useRuns reads a missing runs/index.json as no runs', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })));
+        const { result } = renderHook(() => useRuns(), { wrapper });
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.data).toEqual([]);
+    });
     test('useNewQueue derives proposal items from companies and postings', async () => {
         const { result } = renderHook(() => useNewQueue(), { wrapper });
         expect(result.current.isPending).toBe(true);

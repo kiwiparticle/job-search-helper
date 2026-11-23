@@ -1,4 +1,5 @@
 {
     "tracked": { "days": null, "hours": [10] },
+    "daily": { "days": [1, 3, 5], "hours": [11] },
     "sweep": { "days": null, "hours": [4, 16] }
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { missingOwnerFiles, setD1Id, d1IdByName } from '../lib/setupSteps.js';
+import { missingOwnerFiles, setD1Id, d1IdByName, d1Name } from '../lib/setupSteps.js';
 
 test('missingOwnerFiles lists examples whose owner path is absent', () => {
     const d = mkdtempSync(join(tmpdir(), 's-'));
@@ -31,4 +31,8 @@ test('hasPagesProject matches the exact name only', () => {
     assert.equal(hasPagesProject(JSON.stringify([row('job-search-old')]), 'job-search'), false);
     assert.equal(hasPagesProject(JSON.stringify([row('x', 'job-search.pages.dev')]), 'job-search'), false);
     assert.equal(hasPagesProject('garbage', 'job-search'), false);
+});
+test('d1Name reads database_name, null when absent', () => {
+    assert.equal(d1Name('name = "x"\n[[d1_databases]]\ndatabase_name = "my-jobs"\n'), 'my-jobs');
+    assert.equal(d1Name('name = "x"\n'), null);
 });

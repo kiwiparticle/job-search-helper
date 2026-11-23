@@ -79,7 +79,7 @@ Write exactly five files into `{{OUT}}/`. Don't create or change any other file.
    `payEstimate` is only for a role whose opened posting shows no salary: a cautious base-salary range from comparable postings (same level, similar company size and stage, in the location the owner wants: {{PROFILE_LOCATION}}), with the comparables named in `basis`. It is unverified guidance. Leave it out whenever a posting states pay, and never let it stand in for posted pay in `pay`, `verdict` or `checks`.
    `fit` is how much the owner would want this job, a whole number 1-5. The owner reads New best fit first and stops when scores get low, so spread them out and use 5. Score the fit, not how much you could verify: unposted pay, thin culture evidence or unstated on-call is an `unknown`, never a lower score.
    {{PROFILE_FIT_RUBRIC}}
-   Pay breaks ties: when a role sits between two scores, a posted top of range of about $220k or more rounds it up.
+   Pay breaks ties: when a role sits between two scores, a posted top of range well above {{PROFILE_PAY_FLOOR}} rounds it up.
    A company candidate gets a fit too: how much the owner should want to work there.
    `checks` uses exactly those nine labels. Each `value` is a few plain words, with a short quote only where it decides the mark. `mark` is `good`, `concern` or `unknown`. Use `unknown` whenever you couldn't verify it, never a guess.
 3. `{{OUT}}/ledger-patch.json`: a JSON array with one object per company whose record should change. Each object has `company` (the exact company name from its record) plus only the fields that change. The keys are exactly these, and nothing else is read:

@@ -1,5 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { cleanSchedule, dueAt, dispatchOf } from '../lib/schedule.js';
 
 test('dueAt matches day and hour in UTC', () => {
@@ -27,4 +31,18 @@ test('dispatchOf maps ids to workflow files', () => {
     assert.deepEqual(dispatchOf('culture'), { file: 'search.yml', inputs: { workflow: 'culture' } });
     assert.deepEqual(dispatchOf('resolve'), { file: 'resolve-links.yml', inputs: {} });
     assert.deepEqual(dispatchOf('check-postings'), { file: 'check-postings.yml', inputs: {} });
+});
+
+test('schedule-tick fails loudly on a schedule file that does not parse, stays quiet when it is missing', () => {
+    const tick = new URL('../bin/schedule-tick.js', import.meta.url).pathname;
+    const d = mkdtempSync(join(tmpdir(), 'tick-'));
+    const bad = join(d, 'schedule.json');
+    writeFileSync(bad, '{ "tracked": ');
+    const run = (file) => spawnSync('node', [tick], { encoding: 'utf8', env: { ...process.env, SCHEDULE_FILE: file } });
+    const r = run(bad);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /schedule\.json does not parse/);
+    const none = run(join(d, 'missing.json'));
+    assert.equal(none.status, 0);
+    assert.match(none.stdout, /nothing due/);
 });
