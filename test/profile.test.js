@@ -47,3 +47,8 @@ test('fill-prompt fills env and profile slots, env wins', () => {
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '/o Ann env |');
 });
+
+test('PROFILE_TIE_BREAK is the owner line when set, else tied to the floor', () => {
+    assert.equal(profileSlots(cleanProfile({ tieBreak: 'Own line.' })).PROFILE_TIE_BREAK, 'Own line.');
+    assert.match(profileSlots(cleanProfile({ payFloor: 170000 })).PROFILE_TIE_BREAK, /well above \$170,000 rounds it up/);
+});
