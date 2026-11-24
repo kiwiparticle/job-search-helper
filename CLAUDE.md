@@ -31,13 +31,14 @@ Code never edits these unless the entry names its exception. Model runs only ret
 - `instructions.md`: the rules every search follows (~500 lines, read in full each run). `instructions-local.md` is a condensed copy for local models (registry `"instructions"` field). Exception (both, and `data/sweep-filter.json`): `tune-apply.yml` makes one find/replace from a tune proposal the owner applied.
 - `master-resume.md`: every true fact about the owner. Exception: `merge-master.yml` adds one bullet under a heading listed in `data/master-sections.json` when the owner clicks Add to master.
 - `examples/`: neutral starting copies of every owner file below; `bin/setup.js` copies any that is missing.
+- **Settings page exception:** `#/settings` (`setSettings`, `lib/settings.js`) rewrites `data/reasons.json`, `data/sweep-filter.json` (bumping `version`) and `data/profile.json`, one commit per tab save; only the keys its tab owns, refused (409) when the file moved since the page read it.
 - `data/profile.json`: who the search is for (`who`, `levels`, `stack`, `location`, `strengths`, `offStack`, `domainsFirst`, `fitRubric`, `tieBreak` (optional; default ties pay to the floor), `payFloor`, `currency`). `bin/fill-prompt.js` fills it into prompts as `{{PROFILE_*}}`; a missing file refuses the model run.
 - `data/models.json`: model registry and defaults. Exceptions: `bin/sync-models.js` (by hand) adds and updates `llama-local/` entries; the page's Models dialog (More ▾, `setModels`) flips `enabled` with one commit. Both write through `lib/modelsText.js` to keep the layout.
 - `data/sweep-filter.json`: board-sweep filter (`version`, `roleWords`/`roleNotWords` (which titles the sweep stores at all; absent means the engineering defaults in `lib/sweepFilter.js`), `titleMust`, `titleMustNot`, `titleDrop` (words that drop a role before it is stored; absent means intern, junior, apprentice, co-op), `titleNonSoftware` (rejects only titles with no `softwareWords` word), `softwareWords`, `levels`, `locations`). Bump `version` after an edit so filtered roles are re-checked.
 - `wrangler.toml`: Pages project `name` and the D1 binding and id.
 - `CLAUDE.local.md`: the owner's own notes, loaded beside this file; exists only in the owner's repo.
 - `data/schedule.json`: which runs start on their own and when (UTC), read by `schedule.yml` and the page.
-- `data/reasons.json`: the one-tap reasons Skip and Save offer (`{ skip: [], save: [] }`).
+- `data/reasons.json`: the one-tap reasons Skip, Save and Rule out offer (`{ skip: [], save: [], ruleOut: [] }`).
 - `data/sources.json` (culture run sources), `data/verticals.json` (vertical sweep list), `data/master-sections.json`.
 - `docs/resume-cover-letter-guidelines.md`, `docs/positioning.md`: read by kit prompts.
 - `history.md`: dated archive. Grep by company name, never read whole.
@@ -164,7 +165,7 @@ Run folders: `runs/YYYY-MM-DD-<workflow>-HHMMSS`. `job` runs screen one posting 
 
 - **Stack:** React 19, TypeScript, Vite, `createHashRouter`, TanStack Query, Vitest + Testing Library. Base UI (`@base-ui/react`) for every widget; shared wrappers live in `web/src/components/ui.tsx` (`Fold`, `Choice`, `Tip`, `Button`, `Popup`, `Tabs`), one-off menus and cards may import Base UI directly. No native `<dialog>`, `<details>`, `<select>`, `window.confirm` or `title=` tooltips.
 - **Data:** `/api/companies` and `/api/postings` page JSON Lines (`?after=`, `x-next-after`); a failed page fails the load. Refetches ask `?since=` (delta reads); an action's reply carries the rows it `written`, patched into the cache. Hooks in `web/src/data.ts`.
-- **Routes:** `#/new` (default), `/jobs`, `/jobs/:id`, `/applications`, `/companies`, `/companies/:key`, `/passed`, `/directed`, `/runs`, `/runs/:run`, `/status`, `/kits`, `/kits/:name`, `/master`.
+- **Routes:** `#/new` (default), `/jobs`, `/jobs/:id`, `/applications`, `/companies`, `/companies/:key`, `/passed`, `/directed`, `/runs`, `/runs/:run`, `/status`, `/kits`, `/kits/:name`, `/master`, `/settings` (tabs Reasons, Job titles, Profile; title matching shared with the sweep through `lib/titleWords.js`).
 - **Bar** (`AppBar.tsx`): Search opens a popup (`/`, Ctrl/⌘-K) with Companies, Jobs and Go to. Directed, Runs, Kits and Master sit under More ▾ (Searches too below 1100px). Status shows a dot for running or failed runs (`web/src/status.ts`); visiting Status marks failures seen.
 - **Job pane** (`JobPanel`): a pinned top line (company, tags, buttons) over the `Scorecard` (pay against the floor, fit, merged checks); open applications show `StageControls` there. Then tabs Job, Company, Ask, History.
 - **Applications:** a pipeline board. Columns Applied, Screening, Interviewing, Offer from `stage`; a Closed column counts outcomes and lists closed cards. Cards set stage (`setStage`) and next step (`setNextStep`). `needsFollowUp` (`web/src/pipeline.ts`) shows amber "Follow up?". Cards don't drag.

@@ -17,7 +17,7 @@ import { Popup } from './ui';
 type Hit = { key: string; to: string; about?: 'company' | 'job'; label: string; extra: string };
 type HitGroup = { value: string; items: Hit[] };
 
-const GO_TO = [['Status', '/status'], ['Directed', '/directed'], ['Runs', '/runs'], ['Kits', '/kits'], ['Master', '/master']];
+const GO_TO = [['Status', '/status'], ['Directed', '/directed'], ['Runs', '/runs'], ['Kits', '/kits'], ['Master', '/master'], ['Settings', '/settings']];
 
 // Search over companies, jobs and the pages behind More: Base UI Autocomplete, inline in the dialog.
 // Arrow keys move the highlight, Enter opens it.

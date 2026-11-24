@@ -9,6 +9,7 @@ import { threadPath } from '../../lib/ask.js';
 import { postingId } from '../../lib/postingId.js';
 import { CHAIN_BATCHES } from '../../lib/chain.js';
 import { registryText, setEnabled } from '../../lib/modelsText.js';
+import { SETTINGS, applySettings } from '../../lib/settings.js';
 
 const WORKFLOWS = ['daily', 'tracked', 'links', 'culture', 'vertical', 'reconcile', 'directed'];
 // The board resolver is a script workflow with no run folder, so it stays out of RUN_RE.
@@ -33,7 +34,7 @@ export function isAllowedPath(path) {
     // %, ? and # would let an encoded `..` or a query reach the GitHub API URL.
     if (typeof path !== 'string' || !path || path.startsWith('/') || /[\\%?#]/.test(path)) return false;
     if (path.split('/').some((seg) => seg === '..' || seg === '.' || seg === '')) return false;
-    return ['data/unfiled-history.jsonl', 'data/verticals.json', 'data/models.json', 'data/master-sections.json', 'data/reasons.json', 'data/profile.json', 'data/schedule.json', 'master-resume.md', 'applications', 'followups'].includes(path) || path.startsWith('runs/') || path.startsWith('applications/') || path.startsWith('followups/');
+    return ['data/unfiled-history.jsonl', 'data/verticals.json', 'data/models.json', 'data/master-sections.json', 'data/reasons.json', 'data/profile.json', 'data/schedule.json', 'data/sweep-filter.json', 'master-resume.md', 'applications', 'followups'].includes(path) || path.startsWith('runs/') || path.startsWith('applications/') || path.startsWith('followups/');
 }
 
 export async function handleData(path, { gh, when }) {
@@ -502,6 +503,18 @@ const actions = {
         if (!next.models.some((m) => m.enabled !== false && !m.missing)) return bad('Keep at least one model on.');
         const off = Object.keys(e).filter((k) => !e[k]);
         await gh.putFile('data/models.json', registryText(next), sha, `models: ${off.length ? `off ${off.join(', ')}` : 'turned on'} (page)`);
+        return json(200, { ok: true });
+    },
+    // One Settings tab saved as one commit to its owner file (lib/settings.js checks the values and the file not moving).
+    async setSettings(b, { gh }) {
+        const spec = Object.hasOwn(SETTINGS, b.tab ?? '') ? SETTINGS[b.tab] : null;
+        if (!spec) return bad('unknown settings tab');
+        let file = null;
+        try { file = await gh.getFile(spec.path); } catch (e) { if (e.status !== 404) throw e; }
+        const out = applySettings(b.tab, file?.text ?? null, b.before, b.value);
+        if (out.error) return json(out.status, { error: out.error });
+        try { await gh.putFile(spec.path, out.text, file?.sha, `settings: ${b.tab} (page)`); }
+        catch (e) { if (e.status === 409) return json(409, { error: 'These settings changed since you opened them. Reload the page and try again.' }); throw e; }
         return json(200, { ok: true });
     },
     async ask(b, { gh, now = defaultNow }) {

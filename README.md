@@ -56,7 +56,7 @@ Nothing extra. A private GitHub repo, a runner on your own computer and Cloudfla
 
 ## Your files
 
-These are yours to edit. Updates never change them.
+These are yours to edit. Updates never change them. The most common ones (reasons, job titles, profile) are easiest to change on the page under More → Settings.
 
 - `instructions.md`: the rules every search follows
 - `master-resume.md`: every true fact about you. Resumes and cover letters only use what's in here.

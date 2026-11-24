@@ -2,6 +2,7 @@ import { Navigate, useParams, useSearchParams } from 'react-router';
 import { ErrorScreen } from './components/ErrorScreen';
 import { AppShell } from './components/AppBar';
 import { StatusPage } from './components/StatusPage';
+import { SettingsPage } from './components/SettingsPage';
 import { MasterPage } from './components/MasterPage';
 import { DocPreview, KitPage, KitsPage } from './components/Kits';
 import { ApplicationsPage, CompaniesPage, CompanyPage, JobPage, JobsPage, NewPage, PassedPage, RunPage, RunsPage, DirectedPage } from './components/Pages';
@@ -37,6 +38,7 @@ export const routes = [{
         { path: '/runs/:run', element: <RunPage /> },
         { path: '/status', element: <StatusPage /> },
         { path: '/master', element: <MasterPage /> },
+        { path: '/settings', element: <SettingsPage /> },
         { path: '/kits', element: <KitsPage /> },
         { path: '/kits/:name', element: <KitPage /> },
         { path: '/kits/:name/preview/:file', element: <DocPreview /> },

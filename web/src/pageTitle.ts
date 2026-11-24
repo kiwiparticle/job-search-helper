@@ -18,6 +18,7 @@ export function pageTitle(path: string, ctx: { newCount: number; companies: Comp
             case 'companies': return id ? ctx.companies.find((c) => c.key === decodeURIComponent(id))?.name ?? 'Company' : 'Companies';
             case 'runs': return id ? `Run ${decodeURIComponent(id)}` : 'Runs';
             case 'master': return 'Master';
+            case 'settings': return 'Settings';
             case 'kits': return id ? null : 'Kits';
             default: return 'Job search';
         }
