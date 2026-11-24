@@ -51,7 +51,7 @@ function reviewInputRun(t, ctx, finds, profile = { who: 'w' }) {
     writeFileSync(join(run, 'route.json'), JSON.stringify({ searchers: ['claude'], reviewer: 'loc', advisory: [] }));
     writeFileSync(join(run, 'claude/status.txt'), 'ok');
     writeFileSync(join(run, 'claude/candidates.json'), JSON.stringify(Array.from({ length: finds }, (_, i) => ({ company: `Co${i}`, role: 'Staff', verdict: 'Worth interviewing', note: 'n'.repeat(200) }))));
-    return spawnSync(process.execPath, [new URL('../bin/review-input.js', import.meta.url).pathname, run, 'loc', join(root, 'in.json')], { cwd: root, encoding: 'utf8' });
+    return spawnSync(process.execPath, [new URL('../bin/review-input.js', import.meta.url).pathname, run, 'loc', join(root, 'in.json')], { cwd: root, encoding: 'utf8', env: { ...process.env, FORCE_COLOR: '0' } });
 }
 test('review-input warns how many finds were left out to fit the reviewer', (t) => {
     const r = reviewInputRun(t, 1000, 5);
