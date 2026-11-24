@@ -25,6 +25,8 @@ claude
 
 Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). It downloads and registers the runner, sets the page's Access settings and prints the dashboard steps with pre-filled token links; you type the two tokens yourself and Claude never sees them. Until setup is done the page says which settings are missing. `node bin/setup.js --check` is a dry run that changes nothing.
 
+Without Claude Code: `bin/install-prereqs.sh`, then `node bin/setup.js --private-copy <repo name>`, edit the owner files it copies from `examples/`, and re-run `node bin/setup.js` until every step is `ok`. Its last step starts your first search.
+
 Setup sets the repo variable `JOB_SEARCH_ENABLED` in step 5, before the runner and secrets exist; nothing runs without it. Runs start once the runner and secrets are in place.
 
 ## Updating

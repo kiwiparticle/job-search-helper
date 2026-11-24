@@ -16,6 +16,7 @@ for a in "$@"; do
     esac
 done
 command -v apt-get >/dev/null || { echo "apt-get not found: this script is for Ubuntu/Debian. Install by hand (see README)." >&2; exit 1; }
+export DEBIAN_FRONTEND=noninteractive # no tzdata prompt mid-install
 has() { command -v "$1" >/dev/null 2>&1; }
 
 pkgs=(curl ca-certificates jq gh)
@@ -25,13 +26,13 @@ for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || need+=("$p"); done
 if [ ${#need[@]} -gt 0 ]; then
     echo "== apt: ${need[*]}"
     sudo apt-get update -qq
-    sudo apt-get install -y "${need[@]}"
+    sudo -E apt-get install -y "${need[@]}"
 fi
 
 if ! has node || [ "$(node -p 'parseInt(process.versions.node)')" -lt 26 ]; then
     echo "== Node 26 (NodeSource)"
     curl -fsSL https://deb.nodesource.com/setup_26.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+    sudo -E apt-get install -y nodejs
 fi
 
 has pnpm || { echo "== pnpm"; sudo npm i -g pnpm; }
@@ -39,6 +40,7 @@ has pnpm || { echo "== pnpm"; sudo npm i -g pnpm; }
 if ! has claude && ! has codex; then
     echo "== Claude Code"
     curl -fsSL https://claude.ai/install.sh | bash
+    export PATH="$HOME/.local/bin:$PATH" # where the installer puts it; a new shell has it on PATH
 fi
 
 if [ "$browser" = 1 ]; then

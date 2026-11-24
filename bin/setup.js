@@ -12,7 +12,7 @@ import { audTag, dashboardSteps, d1IdByName, d1Name, emailAddr, hasPagesProject,
 import { loadModels } from '../lib/models.js';
 
 const root = new URL('..', import.meta.url).pathname;
-const { values: flags } = parseArgs({ options: { check: { type: 'boolean' }, email: { type: 'string' }, 'team-domain': { type: 'string' }, aud: { type: 'string' } } });
+const { values: flags } = parseArgs({ options: { check: { type: 'boolean' }, 'private-copy': { type: 'string' }, email: { type: 'string' }, 'team-domain': { type: 'string' }, aud: { type: 'string' } } });
 const check = !!flags.check;
 const sh = (cmd, args, { input, cwd = root } = {}) => {
     try { return { ok: true, out: execFileSync(cmd, args, { cwd, encoding: 'utf8', input, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] }) }; }
@@ -24,11 +24,20 @@ let todo = 0;
 const skip = (n, text) => { todo++; say(n, `skip: ${text}`); };
 
 // Refuse unless `origin` is private. Read the repo from origin itself: gh prefers an `upstream`
-// remote, which here is the public engine.
-const repo = repoFromUrl(sh('git', ['remote', 'get-url', 'origin']).out);
-const priv = repo ? sh('gh', ['repo', 'view', repo, '--json', 'isPrivate', '-q', '.isPrivate']) : { out: '' };
-if (priv.out.trim() !== 'true') {
+// remote, which here is the public engine. `--private-copy <name>` turns a fresh engine clone into one first.
+let repo = repoFromUrl(sh('git', ['remote', 'get-url', 'origin']).out);
+const isPrivate = (r) => r && sh('gh', ['repo', 'view', r, '--json', 'isPrivate', '-q', '.isPrivate']).out.trim() === 'true';
+if (!isPrivate(repo) && flags['private-copy'] && !check) {
+    if (sh('git', ['remote', 'get-url', 'upstream']).ok) { console.error('Refusing --private-copy: an `upstream` remote already exists.'); process.exit(1); }
+    sh('git', ['remote', 'rename', 'origin', 'upstream']);
+    const made = sh('gh', ['repo', 'create', flags['private-copy'], '--private', '--source', '.', '--remote', 'origin', '--push']);
+    if (!made.ok) { sh('git', ['remote', 'rename', 'upstream', 'origin']); console.error(`Could not create the private repo: ${made.out.trim()}`); process.exit(1); }
+    repo = repoFromUrl(sh('git', ['remote', 'get-url', 'origin']).out);
+    console.log(`Made private copy ${repo}; the engine stays as upstream (git pull --no-rebase upstream main for updates).`);
+}
+if (!isPrivate(repo)) {
     console.error(`Refusing: origin (${repo || 'none'}) is not a private GitHub repo you can read. Private repos only; never register a runner on a public repo.`);
+    console.error('To make one from this clone: node bin/setup.js --private-copy <name> (keeps this engine as upstream).');
     process.exit(1);
 }
 // Pin gh to origin, so `gh secret set` and `gh workflow run` never target the engine.
@@ -249,6 +258,21 @@ async function installRunner(dir, name) {
         }
         if (type.length) { console.log('   Type each token yourself (it prompts), then re-run:'); type.forEach((l) => console.log(`   ${l}`)); }
     }
+}
+
+// 8. first run: once everything is ok and no search has run yet, start a daily search. The runner checks out the
+// repo, so the owner files must be pushed first.
+if (!todo) {
+    const runs = sh('gh', ['api', `repos/${repo}/actions/workflows/search.yml/runs?per_page=1`, '-q', '.total_count']);
+    const project = pagesName(readFileSync(tomlPath, 'utf8'));
+    const domain = pagesDomain(sh('npx', ['wrangler', 'pages', 'project', 'list', '--json']).out, project);
+    const unpushed = sh('git', ['status', '--porcelain']).out.trim() || sh('git', ['rev-list', '--count', 'origin/main..HEAD']).out.trim() !== '0';
+    if (!runs.ok) skip(8, `could not list search runs (gh api repos/${repo}/actions/workflows/search.yml/runs)`);
+    else if (Number(runs.out) > 0) say(8, 'ok searches have run before');
+    else if (unpushed) skip(8, 'commit and push your files (git status shows them), then re-run to start the first search');
+    else if (check) { todo++; say(8, 'would start the first daily search'); }
+    else if (!sh('gh', ['api', '-X', 'POST', `repos/${repo}/actions/workflows/search.yml/dispatches`, '-f', 'ref=main', '-f', 'inputs[workflow]=daily']).ok) skip(8, `could not start it: gh workflow run search.yml -R ${repo} -f workflow=daily`);
+    else say(8, `done started the first daily search. Watch: gh run watch -R ${repo}. Leads show on New at https://${domain || `${project}.pages.dev`}`);
 }
 
 console.log(todo ? `\n${todo} step(s) need attention.` : '\nAll steps ok.');

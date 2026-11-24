@@ -9,7 +9,7 @@ Never ask for, read or paste a secret. The person types each one in their own te
 
 Follow these steps in order. Say what you are about to do, and do not skip ahead.
 
-1. **Private copy.** If the repo is still the engine clone: `gh repo create <name> --private --source . --remote origin --push` after renaming the old remote with `git remote rename origin upstream` (`upstream` stays so they can pull engine updates). Then pin gh to it: `git config remote.origin.gh-resolved base`. Confirm `git remote -v` shows both and `gh repo view --json nameWithOwner -q .nameWithOwner` prints the private repo.
+1. **Private copy.** If the repo is still the engine clone, ask for a repo name and run `node bin/setup.js --private-copy <name>`: it renames `origin` to `upstream` (so they can pull engine updates), creates the private repo as `origin` and pushes. Confirm `git remote -v` shows both.
 2. **Interview**, a few questions at a time, then write the files (start from the `examples/` copies; `node bin/setup.js` also copies any missing one):
    - `data/profile.json`: who they are, pay floor and currency, stack, anything the prompts slot in.
    - `data/sweep-filter.json`: title words to require and reject, levels, locations. Bump `version` on later edits.
@@ -28,4 +28,4 @@ Follow these steps in order. Say what you are about to do, and do not skip ahead
    - The two tokens are secrets, typed by the person: step 7 prints the two commands (`gh secret set CLOUDFLARE_API_TOKEN ...`, `npx wrangler pages secret put GITHUB_TOKEN ...`). Tell them to run each with the `!` prefix so you never see the value; each prompts for it.
    - Re-run `node bin/setup.js` until step 7 is `ok`. Then `pnpm run deploy` if it did not just deploy.
 7. **Optional**, only if they want it: local models (`opencode`, then `node bin/sync-models.js`), `agy` (Gemini), more runners than one per searcher (only useful when local models or kits run alongside searches).
-8. **Verify.** Open the page: it must load only behind Access login. Commit and push the owner files, then `gh workflow run search.yml -R <owner/repo> -f workflow=daily`, watch it with `gh run watch -R <owner/repo>`; leads appear on the New page when it finishes (`tracked` only checks known companies, so it finds nothing on an empty database). If it fails, read the run log with them and fix the cause.
+8. **Verify.** Open the page: it must load only behind Access login. Commit and push the owner files, then re-run `node bin/setup.js`: once every step is `ok`, step 8 starts the first daily search. Watch it with `gh run watch -R <owner/repo>`; leads appear on the New page when it finishes (`tracked` only checks known companies, so it finds nothing on an empty database). If it fails, read the run log with them and fix the cause.
