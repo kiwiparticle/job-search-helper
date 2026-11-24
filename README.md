@@ -6,12 +6,14 @@ A model (Claude by default; Codex, local models and Gemini are options) runs you
 
 ## Prerequisites
 
-Linux or WSL only. You need:
+Linux or WSL only. On Ubuntu/Debian, `bin/install-prereqs.sh` installs everything below that is missing (add `--kits` and `--browser` for the optional parts). You need:
 
 - Node 26 or newer and `pnpm`
-- `git` and the GitHub CLI `gh`, logged in
+- `git`, `jq` and the GitHub CLI `gh`, logged in
 - A Cloudflare account (free plan) and `wrangler` logged in
 - Claude Code, and at least one model CLI logged in (`claude` or `codex`)
+- Optional, for application kits: `pandoc`, `libreoffice-writer`, `poppler-utils`
+- Optional, for the browser board finder: Chromium (`pnpm exec playwright install --with-deps chromium`)
 
 ## Set up
 
@@ -21,7 +23,7 @@ cd job-search-helper
 claude
 ```
 
-Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). It downloads and registers the runner and sets the page's Access settings; you type the two tokens yourself and Claude never sees them. Until setup is done the page says which settings are missing. `node bin/setup.js --check` is a dry run that changes nothing.
+Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). It downloads and registers the runner, sets the page's Access settings and prints the dashboard steps with pre-filled token links; you type the two tokens yourself and Claude never sees them. Until setup is done the page says which settings are missing. `node bin/setup.js --check` is a dry run that changes nothing.
 
 Setup sets the repo variable `JOB_SEARCH_ENABLED` in step 5, before the runner and secrets exist; nothing runs without it. Runs start once the runner and secrets are in place.
 

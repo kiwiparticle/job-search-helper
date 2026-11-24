@@ -76,3 +76,19 @@ test('runnerAsset picks the Linux package for the arch', () => {
     assert.equal(runnerAsset(rel, 'arm64').name, 'actions-runner-linux-arm64-2.1.0.tar.gz');
     assert.equal(runnerAsset(rel, 'ia32'), null);
 });
+
+import { pagesDomain, dashboardSteps } from '../lib/setupSteps.js';
+test('pagesDomain picks the pages.dev host of the named project', () => {
+    const j = JSON.stringify([{ 'Project Name': 'job-search', 'Project Domains': 'job-search-x1.pages.dev, jobs.example.com' }]);
+    assert.equal(pagesDomain(j, 'job-search'), 'job-search-x1.pages.dev');
+    assert.equal(pagesDomain(j, 'other'), null);
+    assert.equal(pagesDomain('nope', 'x'), null);
+});
+test('dashboardSteps fills the token links for this repo and account', () => {
+    const text = dashboardSteps({ account: 'abc123', repo: 'me/my-search', domain: 'my-search.pages.dev' }).join('\n');
+    assert.match(text, /one\.dash\.cloudflare\.com\/abc123\/access\/apps/);
+    assert.match(text, /permissionGroupKeys=%5B%7B%22key%22%3A%22d1%22%2C%22type%22%3A%22edit%22%7D%5D/);
+    assert.match(text, /target_name=me&expires_in=366&actions=write&contents=write/);
+    assert.match(text, /Only select repositories, then me\/my-search/);
+    assert.match(text, /hostname, enter my-search\.pages\.dev/);
+});

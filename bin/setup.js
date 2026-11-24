@@ -8,7 +8,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync,
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { audTag, d1IdByName, d1Name, emailAddr, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, pagesSecretNames, repoFromUrl, runnerAsset, runnerFolder, runnersWanted, setD1Id, teamHost } from '../lib/setupSteps.js';
+import { audTag, dashboardSteps, d1IdByName, d1Name, emailAddr, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesDomain, pagesName, pagesSecretNames, repoFromUrl, runnerAsset, runnerFolder, runnersWanted, setD1Id, teamHost } from '../lib/setupSteps.js';
 import { loadModels } from '../lib/models.js';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -35,7 +35,7 @@ if (priv.out.trim() !== 'true') {
 if (!check && sh('git', ['config', '--get', 'remote.origin.gh-resolved']).out.trim() !== 'base') sh('git', ['config', 'remote.origin.gh-resolved', 'base']);
 if (check) console.log('--check: reports only, writes nothing.');
 
-// 1. prerequisites
+// 1. prerequisites. Kit tools and Chromium are optional: searches run without them.
 {
     const miss = [];
     const apt = [];
@@ -47,13 +47,16 @@ if (check) console.log('--check: reports only, writes nothing.');
         ['npx', ['wrangler', 'whoami'], 'npx wrangler login'],
     ]) if (!sh(bin, args).ok) miss.push(`${bin} ${args[0]} failed: ${hint}`);
     if (!sh('claude', ['--version']).ok && !sh('codex', ['--version']).ok) miss.push('install and log in to claude or codex');
-    for (const [bin, pkg] of [['pandoc', 'pandoc'], ['soffice', 'libreoffice-writer'], ['pdfinfo', 'poppler-utils'], ['pdftotext', 'poppler-utils'], ['jq', 'jq'], ['flock', 'util-linux']])
-        if (!sh('which', [bin]).ok) apt.push(pkg);
-    if (apt.length) miss.push(`sudo apt install ${[...new Set(apt)].join(' ')}`);
+    for (const [bin, pkg] of [['jq', 'jq'], ['flock', 'util-linux']]) if (!sh('which', [bin]).ok) apt.push(pkg);
+    if (apt.length) miss.push(`sudo apt install ${apt.join(' ')}`);
+    const kit = [...new Set([['pandoc', 'pandoc'], ['soffice', 'libreoffice-writer'], ['pdfinfo', 'poppler-utils'], ['pdftotext', 'poppler-utils']]
+        .filter(([bin]) => !sh('which', [bin]).ok).map(([, pkg]) => pkg))];
     const pw = join(homedir(), '.cache/ms-playwright');
-    if (!existsSync(pw) || !readdirSync(pw).some((d) => d.startsWith('chromium-'))) miss.push('npx playwright install chromium');
-    if (miss.length) { todo++; say(1, 'skip: prerequisites missing'); miss.forEach((m) => console.log(`   - ${m}`)); }
+    const browser = existsSync(pw) && readdirSync(pw).some((d) => d.startsWith('chromium-'));
+    if (miss.length) { todo++; say(1, 'skip: prerequisites missing (bin/install-prereqs.sh installs them)'); miss.forEach((m) => console.log(`   - ${m}`)); }
     else say(1, 'ok prerequisites');
+    if (kit.length) console.log(`   optional, for application kits: bin/install-prereqs.sh --kits (${kit.join(', ')})`);
+    if (!browser) console.log('   optional, for the browser board finder: bin/install-prereqs.sh --browser (Chromium)');
 }
 
 // 2. owner files
@@ -237,6 +240,13 @@ async function installRunner(dir, name) {
         if (set) notes.push(sh('pnpm', ['run', 'deploy']).ok ? 'deployed' : 'deploy failed, run `pnpm run deploy`');
         if (attention || type.length) todo++;
         say(7, `${attention || type.length ? 'skip:' : 'ok'} page settings and secrets${notes.length ? `: ${notes.join('; ')}` : ''}`);
+        if (type.length || notes.some((n) => n.includes('missing'))) {
+            const account = sh('npx', ['wrangler', 'whoami']).out.match(/\b[0-9a-f]{32}\b/)?.[0];
+            const domain = pagesDomain(sh('npx', ['wrangler', 'pages', 'project', 'list', '--json']).out, project);
+            console.log('   Dashboard steps:');
+            dashboardSteps({ account, repo, domain }).forEach((l) => console.log(`   ${l}`));
+            console.log('   Then: node bin/setup.js --email <your Access email> --team-domain <team>.cloudflareaccess.com --aud <AUD tag>');
+        }
         if (type.length) { console.log('   Type each token yourself (it prompts), then re-run:'); type.forEach((l) => console.log(`   ${l}`)); }
     }
 }
