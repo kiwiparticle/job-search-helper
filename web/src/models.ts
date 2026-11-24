@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getJson } from './api';
-import type { RunLead, Verdict } from './model';
+import type { ModelRun, RunLead, Verdict } from './model';
 import { NAME } from './types';
 
 export type ModelEntry = { id: string; label: string; runner: string; model?: string; ctx?: number; enabled?: boolean; instructions?: string; missing?: boolean };
@@ -112,7 +112,7 @@ export function resolveReviewer(picked: string | undefined, def: string | null, 
     return unusable ? startReviewer(def, sole) : picked;
 }
 
-const andList = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+export const andList = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 // "Claude and Codex, no review": who a search uses by default, with the same reviewer rule the pickers apply.
 export function searchSummary(defaults: Defaults, workflow: string, label: (id: string) => string): string {
@@ -120,4 +120,16 @@ export function searchSummary(defaults: Defaults, workflow: string, label: (id: 
     const r = resolveReviewer(undefined, d.reviewer, d.searchers.length < 2 ? d.searchers[0] : null);
     const review = r === NONE ? 'no review' : r === EACH ? 'reviewing each other' : `reviewed by ${label(r)}`;
     return `${andList(d.searchers.map(label))}, ${review}`;
+}
+
+// "Claude and Codex, reviewed by Gemini": who a finished run used. Old index rows have no `reviewers`;
+// there an entry with no status only reviewed.
+export function runModelsText(models: Record<string, ModelRun> | undefined, reviewers: string[] | undefined, label: (id: string) => string): string {
+    const all = Object.entries(models ?? {});
+    if (!all.length) return '';
+    const searchers = all.filter(([, m]) => m.status).map(([id]) => id);
+    const rev = reviewers ?? all.filter(([, m]) => !m.status).map(([id]) => id);
+    const review = !rev.length ? 'no review'
+        : rev.length > 1 && rev.every((id) => searchers.includes(id)) ? 'reviewing each other' : `reviewed by ${andList(rev.map(label))}`;
+    return `${andList(searchers.map(label))}, ${review}`;
 }

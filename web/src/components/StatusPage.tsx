@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { CompanyLink } from './CompanyLink';
 import { describeRun, useActivity, useCompanies, usePostings, useRuns, type ActivityRun } from '../data';
 import type { RunSummary } from '../model';
-import { useModels } from '../models';
+import { runModelsText, useModels } from '../models';
 import { STATUS_SEEN_KEY, dismissRun, failedSearchers, readDismissed, runsWithFailedSearchers } from '../status';
 import { ExtLink } from '../text';
 
@@ -36,6 +36,7 @@ export function RunLabel({ title, fallback }: { title?: string; fallback?: strin
 const result = (c: NonNullable<RunSummary['counts']>) => `${c.leads ?? 0} leads · ${c.nearMisses ?? 0} near-misses · ${c.changes ?? 0} changes`;
 
 function Section({ title, runs, state, folders }: { title: string; runs: ActivityRun[]; state: (r: ActivityRun) => string; folders?: Map<number, RunSummary> }) {
+    const { label } = useModels();
     return (
         <section className="status-section">
             <h2>{title} <span className="muted small count">{runs.length}</span></h2>
@@ -48,7 +49,7 @@ function Section({ title, runs, state, folders }: { title: string; runs: Activit
                                 <RunLabel title={r.title} fallback={r.workflow} /> <span className="muted small">{state(r)} · {ago(r.updatedAt)}</span>{' '}
                                 {f && <><Link to={`/runs/${f.run}`} className="ext inline">Details</Link>{' '}</>}
                                 <ExtLink href={r.url} className="inline">GitHub</ExtLink>
-                                {f?.counts && <div className="muted small">{result(f.counts)}</div>}
+                                {f?.counts && <div className="muted small">{result(f.counts)}{f.models && Object.keys(f.models).length > 0 && ` · ${runModelsText(f.models, f.reviewers, label)}`}</div>}
                             </li>
                         );
                     })}

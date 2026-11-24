@@ -9,7 +9,7 @@ import { ToastProvider } from '../toast';
 import type { Defaults } from '../models';
 
 const runs = [
-    { run: '2026-11-16-culture-0123', workflow: 'culture', durationMs: 1087825, counts: { leads: 1, nearMisses: 1, changes: 1 } },
+    { run: '2026-11-16-culture-0123', workflow: 'culture', durationMs: 1087825, counts: { leads: 1, nearMisses: 1, changes: 1 }, models: { claude: { status: 'ok' }, codex: {} } },
     { run: '2026-11-15-daily-1648', workflow: 'daily', durationMs: 600000, counts: { leads: 4, nearMisses: 2, changes: 0 } },
     { run: '2026-11-14-daily', workflow: 'daily', counts: { leads: 0, nearMisses: 0, changes: 0 } },
 ];
@@ -77,6 +77,7 @@ test('the runs list shows each run and the unfiled history as text', async () =>
     open('/runs');
     const row = (await screen.findByRole('link', { name: '2026-11-16-culture-0123' })).closest('tr')!;
     expect(within(row).getByText('18 min')).toBeInTheDocument();
+    expect(within(row).getByText('Claude, reviewed by Codex')).toBeInTheDocument();
     expect(await screen.findByText('2026-10-01 old search')).toBeInTheDocument();
     expect(screen.getByText('Looked at Acme; not remote.')).toBeInTheDocument();
 });
@@ -409,12 +410,14 @@ test('finder shows the model label for a registry id', async () => {
 
 test('the status bar names any model that is searching or reviewing, and tolerates a missing status', async () => {
     const normal = fetch;
-    const runsNow = [{ workflow: 'search', title: 'daily', status: 'in_progress', step: 'search (qwen)' }, { workflow: 'search', title: 'tracked', status: 'in_progress', step: 'review (codex)' }];
+    const runsNow = [{ workflow: 'search', title: 'daily', status: 'in_progress', step: 'search (qwen)' }, { workflow: 'search', title: 'tracked', status: 'in_progress', step: 'review (codex)' },
+        { workflow: 'ask', title: 'ask Acme', status: 'in_progress', step: 'run ( claude codex)' }];
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => (url === '/api/status' ? new Response(JSON.stringify({ runs: runsNow })) : normal(url, init))));
     open('/runs');
-    await userEvent.click(await screen.findByRole('button', { name: '2 running' })); // the cards start collapsed
+    await userEvent.click(await screen.findByRole('button', { name: '3 running' })); // the cards start collapsed
     expect(await screen.findByText(/Qwen is searching/)).toBeInTheDocument();
     expect(screen.getByText(/Codex is reviewing/)).toBeInTheDocument();
+    expect(screen.getByText(/Claude and Codex are working/)).toBeInTheDocument();
 });
 
 test('the runs list counts how the search did on jobs added by hand', async () => {

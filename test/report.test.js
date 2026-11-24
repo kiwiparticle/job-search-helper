@@ -573,6 +573,7 @@ test('qwen + claude route with codex reviewing finishes; leads carry opinions an
     assert.deepEqual(Object.keys(alpha.opinions).sort(), ['codex', 'qwen']);
     assert.equal(alpha.reviewed, true);
     assert.equal(report.labels.qwen, 'Qwen');
+    assert.deepEqual(JSON.parse(readFileSync(join(r, 'runs', 'index.json'), 'utf8'))[0].reviewers, ['codex']);
     assert.ok(report.notes.includes('Qwen ran a lighter pass: 3 assignments dropped to fit its context'));
     assert.deepEqual(report.held, []);
     assert.deepEqual(report.changes.find((c) => c.company === 'Ostrander').fields.verdict.to, 'Skip');

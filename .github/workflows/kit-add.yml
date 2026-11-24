@@ -17,6 +17,8 @@ on:
 
 jobs:
   model:
+    # The page's Status bar reads `run (<ids>)` to say which model is working (StatusBar.tsx).
+    name: "run (${{ inputs.drafter }})"
     if: >-
       vars.JOB_SEARCH_ENABLED == 'true'
     runs-on: self-hosted

@@ -138,5 +138,5 @@ export type RunChange = { company: string; before?: Record<string, string> | nul
 // One searcher's outcome in a run: ok, failed, auth or limit, with why when it didn't finish ok.
 export type ModelRun = { status?: string; reason?: string; review?: string };
 export type Report = { workflow: string; topic?: string; models?: Record<string, ModelRun>; reviewers?: string[]; finishedAt: string; ghUrl?: string; durationMs?: number; leads: RunLead[]; nearMisses: RunLead[]; changes: RunChange[]; held?: RunChange[]; refused: RunChange[] };
-export type RunSummary = { run: string; workflow?: string; topic?: string; finishedAt?: string; ghUrl?: string; models?: Record<string, ModelRun>; durationMs?: number; counts?: { leads?: number; nearMisses?: number; changes?: number } };
+export type RunSummary = { run: string; workflow?: string; topic?: string; finishedAt?: string; ghUrl?: string; models?: Record<string, ModelRun>; reviewers?: string[]; durationMs?: number; counts?: { leads?: number; nearMisses?: number; changes?: number } };
 export type Unfiled = { heading: string; text: string };

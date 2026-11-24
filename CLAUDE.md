@@ -174,7 +174,7 @@ Run folders: `runs/YYYY-MM-DD-<workflow>-HHMMSS`. `job` runs screen one posting 
 - **Skip / Save** (`Decide.tsx`): the first click opens one-tap reasons in a popover; a chip, Other, or "without a reason" sends it. Job entries keep every reason in `reasons: [{ state, reason, at }]`.
 - **Passed:** model passes (counted in the nav) and a Filtered chip for sweep-filter passes (not counted).
 - **Actions:** one endpoint, `POST /api/action` (`functions/lib/handlers.js`). The `ACTIONS` registry (`web/src/actions.ts`) drives `ActionModal`, `OpenAction` and `Actions ▾`. Confirm before: Rule out, a stance change or second application with an active application, Delete application, Merge companies.
-- **Working status:** `useActiveRuns` matches workflow `run-name` titles (`ask <company>`, `job <company> | <role>`, `kit ...`, `review ...`, `revise ...`, `piece ...`). Change a title and the page stops matching.
+- **Working status:** `useActiveRuns` matches workflow `run-name` titles (`ask <company>`, `job <company> | <role>`, `kit ...`, `review ...`, `revise ...`, `piece ...`). Change a title and the page stops matching. The bar names the working model from job names: `search (<id>)`, `review (<id>)`, and `run (<ids>)` on every other workflow's model job.
 - **Times** are shown in the browser's zone (`web/src/format.ts`). Page tests pin `TZ` to America/New_York.
 - **Safety:** model text renders as text nodes; `safeHref` allows only http(s) and same-site; `RichText` renders only links and bold.
 - Every row tied to a position shows its posting link (`PostingLink`; New's rows have it in the pane). Company-wide actions confirm first; a single role is skipped with "Skip this role". A re-render must not lose scroll or typed text.

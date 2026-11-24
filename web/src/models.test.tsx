@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 import fixture from '../../test/fixtures/models-searches.json';
-import { cleanDefaults, fitsBudget, opinionsOf, resolveReviewer, searchDefaults, useModels } from './models';
+import { cleanDefaults, fitsBudget, opinionsOf, resolveReviewer, runModelsText, searchDefaults, useModels } from './models';
 
 const verdict = (verdict: string) => ({ verdict });
 
@@ -61,4 +61,12 @@ test('useModels drops a disabled reviewer from a default and keeps the rest', as
     const { result } = renderHook(() => useModels(), { wrapper });
     await waitFor(() => expect(result.current.models.some((m) => m.id === 'qwen')).toBe(true));
     expect(result.current.defaults.search).toEqual({ searchers: ['codex'], reviewer: 'none' });
+});
+
+test('runModelsText names searchers and reviewers, guessing reviewers on old rows', () => {
+    const L = (id: string) => id.toUpperCase();
+    expect(runModelsText({ a: { status: 'ok' }, b: { status: 'auth' }, c: {} }, undefined, L)).toBe('A and B, reviewed by C');
+    expect(runModelsText({ a: { status: 'ok' }, b: { status: 'ok' } }, ['a', 'b'], L)).toBe('A and B, reviewing each other');
+    expect(runModelsText({ a: { status: 'ok' } }, [], L)).toBe('A, no review');
+    expect(runModelsText(undefined, undefined, L)).toBe('');
 });

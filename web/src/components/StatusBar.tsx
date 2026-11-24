@@ -1,17 +1,19 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { describeRun, useActiveRuns, type ActiveRun } from '../data';
-import { useModels } from '../models';
+import { andList, useModels } from '../models';
 import { ExtLink } from '../text';
 import { RunLabel } from './StatusPage';
 
 const STEP: Record<string, string> = {
     setup: 'Starting', finish: 'Merging results', kit: 'Drafting and reviewing', ask: 'Answering',
 };
-// `search (<id>)` and `review (<id>)` are the job names for any model in the registry.
+// `search (<id>)` and `review (<id>)` are the search job names; `run (<id> <id>…)` names the model job of every other workflow.
 const stepText = (step: string | null | undefined, label: (id: string) => string) => {
-    const m = /^(search|review) \((.+)\)$/.exec(step ?? '');
-    return m ? `${label(m[2])} is ${m[1] === 'search' ? 'searching' : 'reviewing'}` : STEP[step ?? ''] ?? step ?? 'Running';
+    const m = /^(search|review|run) \((.+)\)$/.exec(step ?? '');
+    if (!m) return STEP[step ?? ''] ?? step ?? 'Running';
+    const ids = m[2].trim().split(/\s+/);
+    return `${andList(ids.map(label))} ${ids.length > 1 ? 'are' : 'is'} ${m[1] === 'search' ? 'searching' : m[1] === 'review' ? 'reviewing' : 'working'}`;
 };
 const LABEL: Record<string, string> = { search: 'Search run', kit: 'Application kit', ask: 'Question' };
 const elapsed = (iso: string, now: number) => {

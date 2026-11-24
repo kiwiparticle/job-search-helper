@@ -5,7 +5,7 @@ import { useAct, useCompanies, usePostings, useReport, useRuns, useUnfiled } fro
 import { formatDuration } from '../format';
 import type { Company, Posting, Report, RunLead } from '../model';
 import { ExtLink, PostingLink, RichText } from '../text';
-import { opinionsOf, useModels } from '../models';
+import { opinionsOf, runModelsText, useModels } from '../models';
 import { failedSearchers } from '../status';
 import { Tabs } from '@base-ui/react/tabs';
 import { Button, Choice } from './ui';
@@ -27,6 +27,7 @@ function Coverage() {
 export function RunsPage() {
     const { data: runs, isPending, isError } = useRuns();
     const { data: unfiled = [] } = useUnfiled();
+    const { label } = useModels();
     if (isPending) return <p className="empty">Loading…</p>;
     if (isError) return <p className="empty" role="alert">Couldn't load this. Reload to try again.</p>;
     return (
@@ -36,13 +37,14 @@ export function RunsPage() {
             {runs.length === 0 ? <p className="empty">No runs yet. Start one from the bar above.</p> : (
                 <div className="table-box">
                     <table className="list">
-                        <thead><tr><th scope="col">Run</th><th scope="col">Date</th><th scope="col">Workflow</th><th scope="col">Took</th><th scope="col">Leads</th><th scope="col">Skipped</th><th scope="col">Changes</th><th scope="col">GitHub</th></tr></thead>
+                        <thead><tr><th scope="col">Run</th><th scope="col">Date</th><th scope="col">Workflow</th><th scope="col">Models</th><th scope="col">Took</th><th scope="col">Leads</th><th scope="col">Skipped</th><th scope="col">Changes</th><th scope="col">GitHub</th></tr></thead>
                         <tbody>
                             {runs.map((r) => (
                                 <tr key={r.run}>
                                     <td><Link to={`/runs/${r.run}`}>{r.run}</Link>{failedSearchers(r.models).length > 0 && <> <span className="tag tag-bad">{failedSearchers(r.models).length} failed</span></>}</td>
                                     <td className="nowrap small num">{when(r.run)}</td>
                                     <td>{r.workflow}</td>
+                                    <td className="small">{runModelsText(r.models, r.reviewers, label)}</td>
                                     <td className="nowrap small">{formatDuration(r.durationMs)}</td>
                                     <td className="num">{r.counts?.leads ?? 0}</td>
                                     <td className="num">{r.counts?.nearMisses ?? 0}</td>
@@ -165,6 +167,7 @@ export function RunPage() {
     const { data: runs = [] } = useRuns();
     const { data: companies = [] } = useCompanies();
     const { data: report, isPending, isError } = useReport(run);
+    const { label } = useModels();
 
     const tab = TABS.find(([id]) => id === params.get('tab'))?.[0] ?? 'leads';
     const at = runs.findIndex((r) => r.run === run);
@@ -181,7 +184,7 @@ export function RunPage() {
                 </div>
                 {report && (
                     <span className="meta">
-                        {report.workflow}, finished {new Date(report.finishedAt).toLocaleString()}{report.durationMs != null && `, took ${formatDuration(report.durationMs)}`}
+                        {report.workflow}, finished {new Date(report.finishedAt).toLocaleString()}{report.durationMs != null && `, took ${formatDuration(report.durationMs)}`}{report.models && Object.keys(report.models).length > 0 && `. ${runModelsText(report.models, report.reviewers, label)}`}
                     </span>
                 )}
                 {report?.ghUrl && <ExtLink href={report.ghUrl}>GitHub run</ExtLink>}

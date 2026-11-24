@@ -63,6 +63,8 @@ jobs:
         with: { name: triage-ctx, path: '${{ runner.temp }}/ctx', include-hidden-files: true, if-no-files-found: error }
 
   model:
+    # The page's Status bar reads `run (<ids>)` to say which model is working (StatusBar.tsx).
+    name: "run (${{ needs.prepare.outputs.model }})"
     needs: prepare
     if: >-
       vars.JOB_SEARCH_ENABLED == 'true' && (needs.prepare.outputs.count != '0')
