@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { CompanyLink } from './CompanyLink';
 import { describeRun, useActivity, useCompanies, usePostings, useRuns, type ActivityRun } from '../data';
+import type { RunSummary } from '../model';
 import { useModels } from '../models';
 import { STATUS_SEEN_KEY, dismissRun, failedSearchers, readDismissed, runsWithFailedSearchers } from '../status';
 import { ExtLink } from '../text';
@@ -31,18 +32,26 @@ export function RunLabel({ title, fallback }: { title?: string; fallback?: strin
     );
 }
 
-function Section({ title, runs, state }: { title: string; runs: ActivityRun[]; state: (r: ActivityRun) => string }) {
+// One line of what a finished search found, from its stored report.
+const result = (c: NonNullable<RunSummary['counts']>) => `${c.leads ?? 0} leads · ${c.nearMisses ?? 0} near-misses · ${c.changes ?? 0} changes`;
+
+function Section({ title, runs, state, folders }: { title: string; runs: ActivityRun[]; state: (r: ActivityRun) => string; folders?: Map<number, RunSummary> }) {
     return (
         <section className="status-section">
             <h2>{title} <span className="muted small count">{runs.length}</span></h2>
             {runs.length === 0 ? <p className="muted small">Nothing.</p> : (
                 <ul className="plain">
-                    {runs.map((r) => (
-                        <li key={r.id}>
-                            <RunLabel title={r.title} fallback={r.workflow} /> <span className="muted small">{state(r)} · {ago(r.updatedAt)}</span>{' '}
-                            <ExtLink href={r.url}>GitHub</ExtLink>
-                        </li>
-                    ))}
+                    {runs.map((r) => {
+                        const f = folders?.get(r.id);
+                        return (
+                            <li key={r.id}>
+                                <RunLabel title={r.title} fallback={r.workflow} /> <span className="muted small">{state(r)} · {ago(r.updatedAt)}</span>{' '}
+                                {f && <><Link to={`/runs/${f.run}`}>Details</Link>{' '}</>}
+                                <ExtLink href={r.url}>GitHub</ExtLink>
+                                {f?.counts && <div className="muted small">{result(f.counts)}</div>}
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </section>
@@ -87,6 +96,8 @@ const markSeen = () => { try { localStorage.setItem(STATUS_SEEN_KEY, new Date().
 
 export function StatusPage() {
     const { data: runs, isPending, isError } = useActivity();
+    // Run folders by GitHub run id: ghUrl ends in /actions/runs/<id>.
+    const folders = new Map((useRuns().data ?? []).flatMap((f) => { const id = Number(f.ghUrl?.split('/').pop()); return id ? [[id, f] as const] : []; }));
     // When the owner last looked, kept from before this visit marks it seen.
     const [seen] = useState(readSeen);
     // Only once the list has loaded: a failed load must not hide failures the owner never saw.
@@ -102,7 +113,7 @@ export function StatusPage() {
                 <div>
                     <Section title="In progress" runs={by('in_progress')} state={() => 'Running'} />
                     <Section title="Queued" runs={by('queued', 'waiting', 'pending', 'requested')} state={() => 'Waiting for your PC'} />
-                    <Section title="Finished" runs={by('completed')} state={outcome} />
+                    <Section title="Finished" runs={by('completed')} state={outcome} folders={folders} />
                 </div>
                 <aside className="status-side"><FailedSearchers seen={seen} /></aside>
             </div>

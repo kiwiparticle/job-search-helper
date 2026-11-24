@@ -446,3 +446,14 @@ test('Directed lists each directed search by its direction, newest open, and sta
     await userEvent.click(screen.getByRole('button', { name: 'Start search' }));
     await waitFor(() => expect(posts).toEqual([{ type: 'run', workflow: 'directed', topic: 'Principal frontend, $300k+' }]));
 });
+
+test('Status: a finished search shows its counts and links to its run; other runs have no link', async () => {
+    indexRuns = [{ run: '2026-11-15-daily-1648', workflow: 'daily', ghUrl: 'https://github.com/o/r/actions/runs/777', counts: { leads: 4, nearMisses: 2, changes: 0 } }];
+    const done = { status: 'completed', conclusion: 'success', createdAt: '2026-11-15T16:48:00Z', updatedAt: '2026-11-15T16:50:00Z', workflow: 'search' };
+    activityRuns = [{ ...done, id: 777, title: 'search daily', url: 'https://github.com/o/r/actions/runs/777' }, { ...done, id: 778, title: 'sweep', url: 'https://github.com/o/r/actions/runs/778' }];
+    open('/status');
+    expect(await screen.findByText('4 leads · 2 near-misses · 0 changes')).toBeInTheDocument();
+    const links = screen.getAllByRole('link', { name: 'Details' });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute('href', '/runs/2026-11-15-daily-1648');
+});
