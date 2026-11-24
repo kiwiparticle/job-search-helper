@@ -32,3 +32,15 @@ export function statusState(active: ActiveRun[], activity: ActivityRun[] | undef
         + runsWithFailedSearchers(runs, since).length;
     return count ? { kind: 'failed', count } : { kind: 'idle', count: 0 };
 }
+
+// The page's GitHub token, from /api/token. Expired or refused: runs can't start; near expiry: renew it soon.
+export type TokenState = { status: number; expires: string | null };
+const RENEW = 'Regenerate it at github.com/settings/personal-access-tokens, then in your repo run npx wrangler pages secret put GITHUB_TOKEN and pnpm run deploy.';
+export function tokenNotice(t: TokenState | undefined, now = Date.now()): { level: 'bad' | 'warn'; text: string } | null {
+    if (!t) return null;
+    if (t.status === 401) return { level: 'bad', text: `The page's GitHub token has expired or was revoked, so runs can't start. ${RENEW}` };
+    if (t.status === 403 || t.status === 404) return { level: 'bad', text: `The page's GitHub token can't reach the repo, so runs can't start. Check its repository access and permissions (Actions and Contents, read and write).` };
+    if (!t.expires) return null;
+    const days = Math.ceil((Date.parse(t.expires) - now) / DAY);
+    return days <= 14 ? { level: 'warn', text: `The page's GitHub token expires in ${days} day${days === 1 ? '' : 's'}. ${RENEW}` } : null;
+}

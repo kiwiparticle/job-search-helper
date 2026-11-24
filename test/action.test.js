@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handleAction, handleActivity, handleData, handleStatus, handleThread, isAllowedPath, checkActionRequest } from '../functions/lib/handlers.js';
+import { handleAction, handleActivity, handleToken, handleData, handleStatus, handleThread, isAllowedPath, checkActionRequest } from '../functions/lib/handlers.js';
 import { safeHref } from '../lib/safe.js';
 import { makeGithub } from '../functions/lib/github.js';
 import { blankCompany } from '../lib/companies.js';
@@ -691,4 +691,11 @@ test('kit refuses to replace a kit folder unless the rerun says so, and never fo
     assert.equal(gh.calls.dispatches.length, 0);
     assert.equal((await stored(db, 'cartwheelengine')).jobs?.p2, undefined);
     assert.equal((await handleAction({ ...body, replace: true }, deps(gh, db))).status, 202);
+});
+
+test('token reports the status and turns the expiry header into ISO time', async () => {
+    const res = (status, headers = {}) => async () => new Response('{}', { status, headers });
+    const gh = (status, headers) => makeGithub({ token: 't', repo: 'a/b', fetchImpl: res(status, headers) });
+    assert.deepEqual(await (await handleToken({ gh: gh(200, { 'github-authentication-token-expiration': '2026-12-31 23:59:59 UTC' }) })).json(), { status: 200, expires: '2026-12-31T23:59:59.000Z' });
+    assert.deepEqual(await (await handleToken({ gh: gh(401) })).json(), { status: 401, expires: null });
 });

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { ActivityRun } from './data';
-import { dismissRun, runsWithFailedSearchers, statusState } from './status';
+import { dismissRun, runsWithFailedSearchers, statusState, tokenNotice } from './status';
 import type { RunSummary } from './model';
 
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
@@ -40,4 +40,15 @@ test('a run marked seen drops out of the failed searchers', () => {
     expect(runsWithFailedSearchers([run], 0)).toEqual([]);
     expect(statusState([], [], null, [run])).toEqual({ kind: 'idle', count: 0 });
     localStorage.clear();
+});
+
+test('tokenNotice: expired or refused is bad, 14 days or less warns, otherwise nothing', () => {
+    const now = Date.parse('2026-11-24T00:00:00Z');
+    expect(tokenNotice({ status: 401, expires: null }, now)?.level).toBe('bad');
+    expect(tokenNotice({ status: 404, expires: null }, now)?.text).toMatch(/can't reach the repo/);
+    expect(tokenNotice({ status: 200, expires: '2026-12-01T00:00:00Z' }, now)?.text).toMatch(/expires in 7 days/);
+    expect(tokenNotice({ status: 200, expires: '2026-11-25T00:00:00Z' }, now)?.text).toMatch(/expires in 1 day\./);
+    expect(tokenNotice({ status: 200, expires: '2027-06-01T00:00:00Z' }, now)).toBeNull();
+    expect(tokenNotice({ status: 200, expires: null }, now)).toBeNull();
+    expect(tokenNotice(undefined, now)).toBeNull();
 });

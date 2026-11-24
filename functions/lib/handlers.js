@@ -107,6 +107,17 @@ export async function handleStatus({ gh }) {
     }
 }
 
+// The page's GitHub token: { status, expires } with expires as ISO time or null. The page warns on 401/403/404 and near expiry.
+export async function handleToken({ gh }) {
+    try {
+        const { status, expires } = await gh.tokenStatus();
+        const iso = expires ? new Date(expires.replace(' UTC', 'Z').replace(' ', 'T')) : null;
+        return json(200, { status, expires: iso && !Number.isNaN(+iso) ? iso.toISOString() : null });
+    } catch (e) {
+        return json(502, { error: e.message });
+    }
+}
+
 // The status page: recent runs with their state. No per-run job lookups (free-plan subrequest limit).
 export async function handleActivity({ gh }) {
     try {

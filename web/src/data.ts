@@ -321,5 +321,9 @@ export const useActivity = (interval = 20000) =>
         refetchInterval: interval,
     });
 
+// The page's GitHub token (status and expiry). Checked hourly; a failed check shows nothing.
+export const useToken = () =>
+    useQuery({ queryKey: ['token'], queryFn: () => getApi<{ status: number; expires: string | null }>('/api/token'), refetchInterval: 3600000, retry: false });
+
 // The posting check runs for every company at once, so a "Check" button anywhere waits on it.
 export const useChecking = () => useActiveRuns().some((r) => r.workflow === 'check-postings');

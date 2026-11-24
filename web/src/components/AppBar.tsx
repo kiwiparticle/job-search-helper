@@ -4,10 +4,10 @@ import { ModelsDialog } from './ModelsDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
-import { useActiveRuns, useActivity, useCompanies, useJobs, useNewQueue, usePassed, usePostings, useRuns } from '../data';
+import { useActiveRuns, useActivity, useCompanies, useToken, useJobs, useNewQueue, usePassed, usePostings, useRuns } from '../data';
 import { pageTitle } from '../pageTitle';
 import { searchAll } from '../search';
-import { STATUS_SEEN_KEY, statusState } from '../status';
+import { STATUS_SEEN_KEY, statusState, tokenNotice } from '../status';
 import { useToast } from '../toast';
 import { SearchesPanel } from './SearchesPanel';
 import { StatusBar } from './StatusBar';
@@ -103,6 +103,12 @@ function StatusLink() {
     );
 }
 
+// A line under the bar when the page's GitHub token has expired, can't reach the repo, or expires within 14 days.
+function TokenNotice() {
+    const n = tokenNotice(useToken().data);
+    return n && <div role="status" className={`token-notice token-notice-${n.level}`}>{n.text}</div>;
+}
+
 // The shell around every page: title, nav with counts, search, Status, More and Searches.
 export function AppShell() {
     const { data: companies = [] } = useCompanies();
@@ -167,6 +173,7 @@ export function AppShell() {
                     />
                 </div>
             </header>
+            <TokenNotice />
             <main className="shell"><Outlet /></main>
             <ScrollRestoration />
         </>

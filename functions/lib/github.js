@@ -51,6 +51,11 @@ export function makeGithub({ token, repo, fetchImpl = fetch }) {
             return runs;
         },
         // Newest first, every status: queued, running and finished.
+        // The token itself: HTTP status of a cheap repo read, and GitHub's expiry header ('2026-12-31 23:59:59 UTC', absent when it never expires).
+        async tokenStatus() {
+            const res = await api('');
+            return { status: res.status, expires: res.headers.get('github-authentication-token-expiration') };
+        },
         async listRecentRuns() {
             const res = await api('/actions/runs?per_page=100');
             if (!res.ok) await fail(res);
