@@ -25,15 +25,22 @@ const lines = (file) => existsSync(file)
     : [];
 
 const terms = new Set(lines(join(data, 'privacy-terms.txt')));
+// No terms file means nothing to check against: fail, never report a clean tree.
+if (!terms.size) {
+    console.error(`privacy check: no terms in ${join(data, 'privacy-terms.txt')}; set PRIVACY_DATA to the owner's data/ folder`);
+    process.exit(2);
+}
 for (const line of lines(join(data, 'companies.jsonl'))) {
     const row = JSON.parse(line);
     if (all || (row.applications || []).length || Object.keys(row.jobs || {}).length) terms.add(row.name.trim());
 }
 const allowAll = new Set();
+const allowLower = new Set(); // `~term`: the all-lowercase form is a code word everywhere; Capitalized still hits
 const allowIn = new Set();
 for (const line of lines(join(data, 'privacy-allow.txt'))) {
     const m = line.match(/^(\S+):\s+(.+)$/);
     if (m) allowIn.add(`${m[1]}\0${m[2].toLowerCase()}`);
+    else if (line.startsWith('~')) allowLower.add(line.slice(1).toLowerCase());
     else allowAll.add(line.toLowerCase());
 }
 
@@ -49,7 +56,9 @@ function scan(name, text) {
     text.split('\n').forEach((line, i) => {
         for (const re of regexes) {
             for (const m of line.matchAll(re)) {
-                if (!allowIn.has(`${name}\0${m[1].toLowerCase()}`)) hits.push(`${name}:${i + 1}: ${m[1]}`);
+                const word = m[1].toLowerCase();
+                if (allowLower.has(word) && m[1] === word) continue;
+                if (!allowIn.has(`${name}\0${word}`)) hits.push(`${name}:${i + 1}: ${m[1]}`);
             }
         }
     });

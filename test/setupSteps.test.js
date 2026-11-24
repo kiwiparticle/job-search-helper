@@ -42,7 +42,7 @@ test('repoFromUrl reads owner/repo from https and ssh remotes', () => {
     assert.equal(repoFromUrl('git@github.com:acme/job-search.git'), 'acme/job-search');
     assert.equal(repoFromUrl('https://github.com/acme/job-search'), 'acme/job-search');
     assert.equal(repoFromUrl(''), null);
-    assert.equal(repoFromUrl('https://gitlab.com/acme/x.git'), null);
+    assert.equal(repoFromUrl('https://example.org/acme/x.git'), null);
 });
 
 test('runnersWanted: one per searcher, at least one', () => {

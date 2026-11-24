@@ -25,7 +25,7 @@ if ! git diff --quiet "$before" HEAD -- pnpm-lock.yaml; then
     pnpm install --frozen-lockfile
 fi
 pnpm test || {
-    echo "Tests failed. The merge is local and unpushed: fix and rerun, or git reset --hard ORIG_HEAD." >&2
+    echo "Tests failed. The merge is local and unpushed: fix and rerun, or undo this run with git reset --hard $before." >&2
     exit 1
 }
 git pull --no-rebase --no-edit origin main # the runner and page commit here too

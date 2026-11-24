@@ -36,13 +36,14 @@ function zip(files) {
     return Buffer.concat([...locals, cd, end]);
 }
 
-function run(files) {
+function run(files, { terms = '# owner\nJane Q Owner\nZZ\n', allow = '' } = {}) {
     const root = mkdtempSync(join(tmpdir(), 'privacy-'));
     const data = join(root, 'data');
     const tree = join(root, 'tree');
     mkdirSync(data);
     mkdirSync(tree);
-    writeFileSync(join(data, 'privacy-terms.txt'), '# owner\nJane Q Owner\nZZ\n');
+    if (terms != null) writeFileSync(join(data, 'privacy-terms.txt'), terms);
+    if (allow) writeFileSync(join(data, 'privacy-allow.txt'), allow);
     for (const [name, body] of Object.entries(files)) writeFileSync(join(tree, name), body);
     return spawnSync('node', [script, tree], { encoding: 'utf8', env: { ...process.env, PRIVACY_DATA: data } });
 }
@@ -89,4 +90,17 @@ test('a term in an unpushed commit message is flagged', () => {
     const r = spawnSync('node', [script, tree], { encoding: 'utf8', env: { ...process.env, PRIVACY_DATA: data } });
     assert.equal(r.status, 1);
     assert.match(r.stdout, /^commit [0-9a-f]{12}:3: Jane Q Owner$/m);
+});
+
+test('no terms file fails instead of reporting clean', () => {
+    const r = run({ 'a.txt': 'anything' }, { terms: null });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /no terms/);
+});
+
+test('~term allows only the lowercase code word; the Capitalized name still hits', () => {
+    const r = run({ 'a.js': 'el.close();\nWe met Close at a fair.\n' }, { terms: 'Close\n', allow: '~close\n' });
+    assert.equal(r.status, 1);
+    assert.match(r.stdout + r.stderr, /a\.js:2: Close/);
+    assert.doesNotMatch(r.stdout + r.stderr, /a\.js:1/);
 });
