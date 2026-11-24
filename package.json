@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/ && vitest run",
+    "test": "node --test --test-reporter=dot test/ && vitest run",
     "build": "tsc -p web && vite build",
     "deploy": "vite build && npx --yes wrangler@4 pages deploy dist --branch main --commit-dirty=true",
     "preview": "vite build && node dev/preview-server.mjs"

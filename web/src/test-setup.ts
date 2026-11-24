@@ -5,4 +5,7 @@ import { afterEach, vi } from 'vitest';
 // Times on the page are shown in the browser's time zone; pin it so the tests do not depend on the machine they run on.
 vi.stubEnv('TZ', 'America/New_York');
 
+// jsdom has no scrollTo and logs "Not implemented" on every call.
+window.scrollTo = () => {};
+
 afterEach(cleanup);

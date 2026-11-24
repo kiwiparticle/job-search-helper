@@ -45,7 +45,7 @@ function setup(t, { opencode = 'echo ok', swap = 'exit 0', agy = 'echo ok' } = {
     const go = (id, { outDir = out, env = {} } = {}) => {
         const r = spawnSync(join(root, 'bin/run-model.sh'), [id, join(root, 'prompt.md'), outDir], {
             cwd: root, encoding: 'utf8',
-            env: { PATH: `${st}:${process.env.PATH}`, SWAP_MODEL_BIN: join(st, 'swap'), ...env },
+            env: { PATH: `${st}:${process.env.PATH}`, SWAP_MODEL_BIN: join(st, 'swap'), AGY_POLL: '0.2', ...env },
         });
         const status = existsSync(join(outDir, 'status.txt')) ? readFileSync(join(outDir, 'status.txt'), 'utf8').trim() : null;
         const log = existsSync(calls) ? readFileSync(calls, 'utf8') : '';
