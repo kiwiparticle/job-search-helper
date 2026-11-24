@@ -273,7 +273,7 @@ test('SIGTERM to the agy wrapper stops agy and removes its temp policy file', as
     const { root } = setup(t, { agy: `echo $$ >"$ROOT/pid"; : >"$ROOT/ready"; sleep 30` });
     const outDir = join(root, 'out'); mkdirSync(outDir);
     const child = spawn(join(root, 'bin/agy-run.sh'), [root, outDir, 'hi', '60'], {
-        env: { ROOT: root, TMPDIR: root, PATH: `${join(root, 'stubs')}:${process.env.PATH}` }, stdio: 'ignore',
+        env: { ROOT: root, TMPDIR: root, AGY_POLL: '0.2', PATH: `${join(root, 'stubs')}:${process.env.PATH}` }, stdio: 'ignore',
     });
     const closed = new Promise((res) => child.on('close', res));
     for (let i = 0; i < 100 && !existsSync(join(root, 'ready')); i++) await new Promise((r) => setTimeout(r, 50));
