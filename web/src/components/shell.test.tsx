@@ -21,6 +21,7 @@ test('searchAll finds a company by name and a job by role, ignoring case and pun
 
 beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        if (url === '/api/activity') return new Response(JSON.stringify({ runs: [] }));
         if (url === '/api/companies') return new Response(lines(data));
         if (url === '/api/postings') return new Response(lines(postings));
         if (url.includes('schedule.json')) return new Response(JSON.stringify({ tracked: { days: null, hours: [10] }, daily: { days: [1, 3, 5], hours: [11] } }));
@@ -185,6 +186,7 @@ test('the nav New count is the queue length; saved jobs are not counted', async 
     } });
     const lead = company({ key: 'lead', name: 'Lead Co' });
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        if (url === '/api/activity') return new Response(JSON.stringify({ runs: [] }));
         if (url === '/api/companies') return new Response(lines([saved, lead]));
         if (url === '/api/postings') return new Response(lines([
             posting({ id: 'l1', companyKey: 'lead', leadKey: 'lk', role: 'Lead Role' }),
