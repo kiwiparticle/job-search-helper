@@ -12,11 +12,19 @@ Go one step at a time. Say what's next before you do it, and keep your messages 
 
 1. **Tools.** Have them run `! bin/install-prereqs.sh`. It skips anything already installed and asks for their password (sudo). Add `--kits` if they want resumes and cover letters, `--browser` for the board finder. Then have them log in to each tool it lists.
 2. **Private copy.** If this is still the public engine clone, ask what to call their repo, then run `node bin/setup.js --private-copy <name>`. The engine stays as `upstream` so they can get updates. Check `git remote -v` shows both remotes.
-3. **Get to know them.** Ask a few questions at a time, then write the files. Start from the `examples/` copies.
-   - First ask what kind of job: **software engineering**, **QA / QE / SDET**, or both. Everything below follows from it.
-   - `data/profile.json`: who they are, the level and stack they want, location, pay floor and currency.
+3. **Get to know them, without making them type.** Their resume already answers most questions, so start there.
+   1. **Get their resume.** Ask for the path to the file anywhere on their computer (PDF, Word or text), or have them paste it in. Keep the original out of the repo. Several tailored versions are even better. Convert each to Markdown (`pdftotext`, `pandoc`) into a scratch folder.
+   2. **Draft `master-resume.md`** from it, following `prompts/seed-master.md`. Every fact has to be true. Show them the Conflicts list it makes and settle each one.
+   3. **Draft the rest from the resume yourself:** what kind of job (engineering, QA / QE / SDET, or both), level, stack, strengths, likely target titles and industries.
+   4. **Ask only what a resume can't say**, in one short message:
+      - lowest base pay and currency
+      - where they want to work (remote, hybrid, which country or city)
+      - dealbreakers: work they won't do, industries they avoid, on-call limits
+      - anything you guessed and aren't sure of, as a yes/no ("You look like a Senior SDET focused on Playwright. Right?")
+   5. **Write the files**, starting from the `examples/` copies, then show a short summary and ask "anything to change?" They can also fix things later in More → Settings on the page.
+   - `data/profile.json`: who they are, levels, stack, strengths, work they don't want, location, pay floor and currency, and a fit rubric in their own terms.
    - `instructions.md`: from `examples/instructions.md`, changed to fit their target roles and dealbreakers. For QA, swap the target titles (SDET, QA Engineer, Quality Engineer, Test Automation Engineer) and the tech-fit section (their test frameworks and tools).
-   - `master-resume.md`: from their current resume (follow `prompts/seed-master.md`), or by asking. Every fact has to be true.
+   - No resume at all? Ask for their last two or three jobs (title, company, years, what they did), then do the same steps.
    - `data/sweep-filter.json`: title words a job must have or can't have, levels, locations.
      - `roleWords` / `roleNotWords` decide which job titles get saved at all. The example has the engineering lists.
      - For QA / QE / SDET, use `roleWords`: `["qa", "qe", "sdet", "quality", "quality assurance", "test", "tester", "testing", "automation", "engineer in test", "verification"]`, and `roleNotWords`: the example's list without `analyst` (so "QA Analyst" stays).

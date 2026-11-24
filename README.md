@@ -32,7 +32,7 @@ claude
 Then type `/setup`. Claude walks you through all of it:
 
 1. Makes your private copy of the repo
-2. Asks about you: the roles you want, your pay floor, your resume
+2. Reads your resume and fills in your profile, then asks only what a resume can't say, like your pay floor and dealbreakers
 3. Creates the database and the web page on Cloudflare
 4. Sets up the runner, the program that does the searches on your computer
 5. Gives you links for the few things you click yourself on GitHub and Cloudflare
