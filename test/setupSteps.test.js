@@ -55,3 +55,24 @@ test('runnerFolder is named after the repo', () => {
     assert.equal(runnerFolder('acme/job-search', 1), 'actions-runner-job-search');
     assert.equal(runnerFolder('acme/job-search', 2), 'actions-runner-job-search-2');
 });
+
+import { pagesSecretNames, teamHost, audTag, emailAddr, runnerAsset } from '../lib/setupSteps.js';
+test('pagesSecretNames reads names from wrangler output', () => {
+    const out = 'The "production" environment of your Pages project "x" has access to the following secrets:\n  - ACCESS_AUD: Value Encrypted\n  - GITHUB_REPO: Value Encrypted\n';
+    assert.deepEqual(pagesSecretNames(out), ['ACCESS_AUD', 'GITHUB_REPO']);
+    assert.deepEqual(pagesSecretNames(''), []);
+});
+test('page setting flags are cleaned or refused', () => {
+    assert.equal(teamHost('https://Acme.cloudflareaccess.com/'), 'acme.cloudflareaccess.com');
+    assert.equal(teamHost('acme.example.com'), null);
+    assert.equal(audTag(` ${'A'.repeat(64)} `), 'a'.repeat(64));
+    assert.equal(audTag('abc'), null);
+    assert.equal(emailAddr(' me@example.com '), 'me@example.com');
+    assert.equal(emailAddr('me'), null);
+});
+test('runnerAsset picks the Linux package for the arch', () => {
+    const rel = { assets: [{ name: 'actions-runner-osx-x64-2.1.0.tar.gz' }, { name: 'actions-runner-linux-x64-2.1.0.tar.gz' }, { name: 'actions-runner-linux-arm64-2.1.0.tar.gz' }] };
+    assert.equal(runnerAsset(rel, 'x64').name, 'actions-runner-linux-x64-2.1.0.tar.gz');
+    assert.equal(runnerAsset(rel, 'arm64').name, 'actions-runner-linux-arm64-2.1.0.tar.gz');
+    assert.equal(runnerAsset(rel, 'ia32'), null);
+});

@@ -20,18 +20,14 @@ Follow these steps in order. Say what you are about to do, and do not skip ahead
    - `wrangler.toml` (copy `examples/wrangler.toml`): a name for the Pages project and the D1 database, `name` and `database_name`. The default `job-search` is fine for a first install; it must be unused on their Cloudflare account (`bin/setup.js` refuses a taken one). The page lives at `<name>.pages.dev`.
    - `instructions.md`: from `examples/instructions.md`, adjusted to their target roles and dealbreakers.
    - `master-resume.md`: from their existing resume (follow `prompts/seed-master.md`), or by interview. Every fact must be true.
-3. **Run `node bin/setup.js --check`**, show the result, then `node bin/setup.js`. It checks prerequisites, copies owner files, creates D1 and applies the schema, creates and deploys the Pages project, sets repo variables `JOB_SEARCH_ENABLED`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, and prints the commands for the runners still missing: one per searcher, in `~/actions-runner-<repo>`, `-2`, registered to this repo. Anything it prints as `skip:` is for the person to do by hand (install lines, the runner commands with `sudo`); help them, then re-run until every step is `ok`.
+3. **Run `node bin/setup.js --check`**, show the result, then `node bin/setup.js`. It checks prerequisites, copies owner files, creates D1 and applies the schema, creates and deploys the Pages project, sets repo variables `JOB_SEARCH_ENABLED`, `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, downloads and registers one runner per searcher (`~/actions-runner-<repo>`, `-2`), then prints the `sudo ./svc.sh` line that starts each. Anything it prints as `skip:` is for the person to do by hand (install lines, the `sudo` lines); help them, then re-run until every step is `ok`. Step 7 stays `skip:` until steps 4 and 5 below are done.
 4. **Dashboard steps** (the person clicks; you guide):
    - Cloudflare Zero Trust: Access application for the Pages domain (`<project>.pages.dev`) and any custom domain, one policy allowing only their email. Note the application AUD tag (on the application's Overview) and the team domain (Zero Trust, Overview, Discover tab, account details on the right; type only the host, `yourteam.cloudflareaccess.com`, no `https://`).
    - Cloudflare, My Profile, API Tokens: create a token with Account, D1, Edit only, this account only.
    - GitHub, Settings, Developer settings, fine-grained token: only this repo, permissions Actions read/write and Contents read/write (the page dispatches workflows and reads files).
-5. **Secrets, typed by the person** (tell them to run each with the `!` prefix so you never see the value; each prompts for it):
-   - `! gh secret set CLOUDFLARE_API_TOKEN -R <owner/repo>`
-   - `! npx wrangler pages secret put ACCESS_AUD`
-   - `! npx wrangler pages secret put ACCESS_TEAM_DOMAIN`
-   - `! npx wrangler pages secret put GITHUB_REPO` (`owner/repo`)
-   - `! npx wrangler pages secret put GITHUB_TOKEN`
-   - `! npx wrangler pages secret put OWNER_EMAIL`
-   Then `pnpm run deploy` so the page picks them up.
+5. **Page settings and tokens.**
+   - Ask for their Access email, the team domain and the AUD tag (none is a secret), then run `node bin/setup.js --email <email> --team-domain <team>.cloudflareaccess.com --aud <AUD>`. It sets those and `GITHUB_REPO` on the Pages project and deploys.
+   - The two tokens are secrets, typed by the person: step 7 prints the two commands (`gh secret set CLOUDFLARE_API_TOKEN ...`, `npx wrangler pages secret put GITHUB_TOKEN ...`). Tell them to run each with the `!` prefix so you never see the value; each prompts for it.
+   - Re-run `node bin/setup.js` until step 7 is `ok`. Then `pnpm run deploy` if it did not just deploy.
 6. **Optional**, only if they want it: local models (`opencode`, then `node bin/sync-models.js`), `agy` (Gemini), more runners than one per searcher (only useful when local models or kits run alongside searches).
 7. **Verify.** Open the page: it must load only behind Access login. Commit and push the owner files, then `gh workflow run search.yml -R <owner/repo> -f workflow=daily`, watch it with `gh run watch -R <owner/repo>`; leads appear on the New page when it finishes (`tracked` only checks known companies, so it finds nothing on an empty database). If it fails, read the run log with them and fix the cause.

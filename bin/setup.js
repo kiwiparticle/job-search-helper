@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // One-time setup of a private copy: checks each step, does what is missing.
-// `--check` only reports (writes nothing). No secrets are set or read here.
+// `--check` only reports (writes nothing). Secret values are never read; secret names are listed.
+// `--email`, `--team-domain`, `--aud` set the page's Access settings (not secrets, so a flag is fine).
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { d1IdByName, d1Name, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, repoFromUrl, runnerFolder, runnersWanted, setD1Id } from '../lib/setupSteps.js';
+import { parseArgs } from 'node:util';
+import { audTag, d1IdByName, d1Name, emailAddr, hasPagesProject, hasPlaceholder, missingOwnerFiles, nodeOk, pagesName, pagesSecretNames, repoFromUrl, runnerAsset, runnerFolder, runnersWanted, setD1Id, teamHost } from '../lib/setupSteps.js';
 import { loadModels } from '../lib/models.js';
 
 const root = new URL('..', import.meta.url).pathname;
-const check = process.argv.includes('--check');
-const sh = (cmd, args) => {
-    try { return { ok: true, out: execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
+const { values: flags } = parseArgs({ options: { check: { type: 'boolean' }, email: { type: 'string' }, 'team-domain': { type: 'string' }, aud: { type: 'string' } } });
+const check = !!flags.check;
+const sh = (cmd, args, { input, cwd = root } = {}) => {
+    try { return { ok: true, out: execFileSync(cmd, args, { cwd, encoding: 'utf8', input, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] }) }; }
     catch (e) { return { ok: false, out: `${e.stdout || ''}${e.stderr || ''}` }; }
 };
 const say = (n, text) => console.log(`${n}. ${text}`);
@@ -148,23 +152,92 @@ else {
     say(5, notes.length ? `${check ? 'todo' : 'done'} ${notes.join('; ')}` : 'ok repo variables');
 }
 
-// 6. runners (never runs sudo): one per searcher, registered to this repo
+// 6. runners: one per searcher, registered to this repo. Missing ones are downloaded and registered here;
+// starting the service needs sudo, so that line is printed for the person (this script never runs sudo).
 {
     const want = runnersWanted(loadModels(root).defaults);
-    let have = null;
-    try { have = JSON.parse(sh('gh', ['api', `repos/${repo}/actions/runners`]).out).total_count; } catch {}
-    if (have == null) skip(6, `could not list this repo's runners (gh api repos/${repo}/actions/runners); register ${want} by hand`);
-    else if (have >= want) say(6, `ok ${have} runner(s) registered to ${repo}`);
+    let runners = null;
+    try { runners = JSON.parse(sh('gh', ['api', `repos/${repo}/actions/runners`]).out).runners; } catch {}
+    const online = runners?.filter((r) => r.status === 'online').length ?? 0;
+    if (!runners) skip(6, `could not list this repo's runners (gh api repos/${repo}/actions/runners)`);
+    else if (online >= want) say(6, `ok ${online} runner(s) online for ${repo}`);
     else {
         todo++;
-        say(6, `skip: ${have} of ${want} runner(s) registered to ${repo} (one per searcher). In your terminal, for each missing one:`);
-        for (let i = have + 1; i <= want; i++) {
-            const dir = runnerFolder(repo, i);
-            console.log(`   mkdir ~/${dir} && cd ~/${dir}
-   # download the Linux x64 package from https://github.com/actions/runner/releases and extract it, then:
-   ./config.sh --unattended --url https://github.com/${repo} --name ${dir} --token $(gh api -X POST repos/${repo}/actions/runners/registration-token -q .token)
-   sudo ./svc.sh install && sudo ./svc.sh start`);
+        const notes = [];
+        const start = [];
+        let short = want - online;
+        for (let i = 1; short > 0 && i <= want + online; i++) {
+            const name = runnerFolder(repo, i);
+            const dir = join(homedir(), name);
+            if (runners.some((r) => r.name === name && r.status === 'online')) continue;
+            short--;
+            if (!existsSync(join(dir, '.runner'))) {
+                if (check) { notes.push(`would download and register ~/${name}`); continue; }
+                const err = await installRunner(dir, name);
+                notes.push(err ? `~/${name}: ${err}` : `registered ~/${name}`);
+                if (err) continue;
+            }
+            start.push(`cd ~/${name} && ${existsSync(join(dir, '.service')) ? '' : 'sudo ./svc.sh install && '}sudo ./svc.sh start`);
         }
+        say(6, `skip: ${online} of ${want} runner(s) online (one per searcher)${notes.length ? `. ${notes.join('; ')}` : ''}`);
+        if (start.length) { console.log('   Start each in your terminal, then re-run:'); start.forEach((l) => console.log(`   ${l}`)); }
+    }
+}
+
+// Download the latest runner package (checked against the release's sha256), extract it into `dir`, register it.
+async function installRunner(dir, name) {
+    let rel = null;
+    try { rel = JSON.parse(sh('gh', ['api', 'repos/actions/runner/releases/latest']).out); } catch {}
+    const asset = runnerAsset(rel, process.arch);
+    if (!asset) return `no Linux ${process.arch} package in the latest runner release`;
+    if (!asset.digest) return 'the release lists no checksum; install by hand from https://github.com/actions/runner/releases';
+    const res = await fetch(asset.browser_download_url);
+    if (!res.ok) return `download failed (${res.status})`;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (`sha256:${createHash('sha256').update(buf).digest('hex')}` !== asset.digest) return 'download checksum did not match';
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, asset.name), buf);
+    const tar = sh('tar', ['xzf', asset.name], { cwd: dir });
+    rmSync(join(dir, asset.name));
+    if (!tar.ok) return 'extract failed';
+    const token = sh('gh', ['api', '-X', 'POST', `repos/${repo}/actions/runners/registration-token`, '-q', '.token']).out.trim();
+    if (!token) return 'could not get a registration token';
+    const r = sh('./config.sh', ['--unattended', '--replace', '--url', `https://github.com/${repo}`, '--name', name, '--token', token], { cwd: dir });
+    return r.ok ? null : `config.sh failed (missing libraries? run sudo ~/${name}/bin/installdependencies.sh, then re-run): ${r.out.trim().split('\n').pop()}`;
+}
+
+// 7. page settings and secrets. Only names are listed, never values. Settings that are not secret come from
+// this repo or the flags and are set here; the two tokens are typed by the person.
+{
+    const project = pagesName(existsSync(tomlPath) ? readFileSync(tomlPath, 'utf8') : '');
+    const listed = project ? sh('npx', ['wrangler', 'pages', 'secret', 'list', '--project-name', project]) : { ok: false };
+    let ghHave = null;
+    try { ghHave = JSON.parse(sh('gh', ['api', `repos/${repo}/actions/secrets`]).out).secrets.map((x) => x.name); } catch {}
+    if (!listed.ok) skip(7, 'could not list the Pages project settings (step 4 first)');
+    else {
+        const have = new Set(pagesSecretNames(listed.out));
+        const notes = [];
+        const type = [];
+        let attention = false;
+        let set = 0;
+        for (const [k, flag, clean] of [['GITHUB_REPO'], ['OWNER_EMAIL', 'email', emailAddr], ['ACCESS_TEAM_DOMAIN', 'team-domain', teamHost], ['ACCESS_AUD', 'aud', audTag]]) {
+            const raw = flag ? flags[flag] : (have.has(k) ? undefined : repo);
+            if (raw == null) { if (!have.has(k)) { attention = true; notes.push(`${k} missing (pass --${flag})`); } continue; }
+            const v = clean ? clean(raw) : raw;
+            if (!v) { attention = true; notes.push(`--${flag} is not valid`); continue; }
+            if (check) { attention = true; notes.push(`would set ${k}`); continue; }
+            const ok = sh('npx', ['wrangler', 'pages', 'secret', 'put', k, '--project-name', project], { input: v }).ok;
+            if (ok) set++; else attention = true;
+            notes.push(ok ? `set ${k}` : `FAILED ${k}`);
+        }
+        if (!have.has('GITHUB_TOKEN')) type.push(`npx wrangler pages secret put GITHUB_TOKEN --project-name ${project}`);
+        if (!ghHave) { attention = true; notes.push(`could not list repo secrets (gh api repos/${repo}/actions/secrets)`); }
+        else if (!ghHave.includes('CLOUDFLARE_API_TOKEN')) type.push(`gh secret set CLOUDFLARE_API_TOKEN -R ${repo}`);
+        // the page reads its settings at deploy time
+        if (set) notes.push(sh('pnpm', ['run', 'deploy']).ok ? 'deployed' : 'deploy failed, run `pnpm run deploy`');
+        if (attention || type.length) todo++;
+        say(7, `${attention || type.length ? 'skip:' : 'ok'} page settings and secrets${notes.length ? `: ${notes.join('; ')}` : ''}`);
+        if (type.length) { console.log('   Type each token yourself (it prompts), then re-run:'); type.forEach((l) => console.log(`   ${l}`)); }
     }
 }
 

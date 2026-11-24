@@ -21,7 +21,7 @@ cd job-search-helper
 claude
 ```
 
-Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). You type every secret yourself; Claude never sees one. `node bin/setup.js --check` is a dry run that changes nothing.
+Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). It downloads and registers the runner and sets the page's Access settings; you type the two tokens yourself and Claude never sees them. Until setup is done the page says which settings are missing. `node bin/setup.js --check` is a dry run that changes nothing.
 
 Setup sets the repo variable `JOB_SEARCH_ENABLED` in step 5, before the runner and secrets exist; nothing runs without it. Runs start once the runner and secrets are in place.
 
@@ -89,7 +89,7 @@ Run output goes in `runs/<date>-<workflow>/`.
 
 ## The runner
 
-Install a GitHub Actions runner on your machine as a service (`/setup` prints the commands). If Claude or Codex logs out, the page shows a banner: run `claude` or `codex login`, then start the run again.
+`node bin/setup.js` downloads and registers a GitHub Actions runner per searcher and prints the `sudo` line that starts each as a service. If Claude or Codex logs out, the page shows a banner: run `claude` or `codex login`, then start the run again.
 
 ## Models
 

@@ -54,3 +54,12 @@ test('alg none is rejected', async () => {
     const body = b64url(JSON.stringify({ iss: 'https://kiwi.cloudflareaccess.com', aud: ['aud-tag'], email: 'owner@example.com', exp: NOW + 60 }));
     await assert.rejects(verifyAccessJwt(`${head}.${body}.`, OPTS), /alg/);
 });
+
+import { onRequest } from '../functions/_middleware.js';
+test('middleware names missing settings, never values, before any auth', async () => {
+    const res = await onRequest({ request: new Request('https://x/'), env: { ACCESS_AUD: 'secret-aud', GITHUB_REPO: 'a/b' }, next: () => assert.fail('passed') });
+    assert.equal(res.status, 503);
+    const text = await res.text();
+    assert.match(text, /ACCESS_TEAM_DOMAIN, OWNER_EMAIL, GITHUB_TOKEN not set/);
+    assert.doesNotMatch(text, /secret-aud/);
+});
