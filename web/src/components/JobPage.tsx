@@ -243,6 +243,7 @@ export function JobPanel({ company, posting, id, entry, openLink, unjudged }: { 
                 <h2>{job.role}</h2>
                 {app?.outcome === 'applied' && <div className="actions"><StageControls company={company} app={app} /><span className="small"><NextStep app={app} /></span></div>}
             </header>
+            {e?.state === 'skipped' && <p className="small"><Tag>Skipped</Tag> {e.reasons?.filter((r: { state: string; reason: string }) => r.state === 'skipped' && r.reason).pop()?.reason}</p>}
             <CompanyFacts company={company} />
             {gone && (
                 <div className="gone-box" role="status">

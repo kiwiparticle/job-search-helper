@@ -194,6 +194,7 @@ export function CompanyPanel({ company, openLink, bare: inPane }: { company: Com
         )}
     </>;
     const jobs = (() => {
+        const why = (j?: { reasons?: { state: string; reason: string }[] }) => { const r = j?.reasons?.filter((x) => x.state === 'skipped' && x.reason).pop()?.reason; return r && <span className="muted small"> · {r}</span>; };
         const isSkipped = (p: Posting) => jobEntry(company, p)?.state === 'skipped';
         const current = postings.filter((p) => !isSkipped(p));
         const skippedPostings = postings.filter(isSkipped);
@@ -230,12 +231,13 @@ export function CompanyPanel({ company, openLink, bare: inPane }: { company: Com
                         {skippedPostings.map((p) => (
                             <li key={p.id}>
                                 <span className="row"><Link to={`/jobs/${p.id}`}>{p.role}</Link><PostingLink url={p.url} /></span>
-                                {meta(p)}
+                                {meta(p)}{why(jobEntry(company, p))}
                             </li>
                         ))}
                         {bareSkipped.map(([id, j]) => (
                             <li key={id}>
                                 <span className="row"><Link to={`/jobs/${id}`}>{j.role}</Link><PostingLink url={j.url} /></span>
+                                {why(j)}
                             </li>
                         ))}
                     </ul>
