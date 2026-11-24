@@ -188,6 +188,7 @@ pnpm install
 pnpm test          # node --test test/ (pipeline, store, backend) and vitest run (page)
 pnpm run build     # tsc -p web && vite build
 pnpm run deploy    # vite build, wrangler pages deploy dist
+pnpm sync          # owner repo: pull origin + upstream, test, push, deploy (bin/sync.sh)
 npx tsc -p web
 pnpm run preview   # dist/ on localhost:8099 with repo files behind /api/* (writes discarded)
 node dev/shot.mjs '#/new' out.png [width] [height]   # screenshot + console errors

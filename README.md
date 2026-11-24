@@ -45,7 +45,7 @@ You paste the two access tokens yourself, so Claude never sees them. Until setup
 ## Getting updates
 
 ```
-pnpm ship
+pnpm sync
 ```
 
 That pulls the latest version, runs the tests, pushes and redeploys your page. Your own files are never touched.
