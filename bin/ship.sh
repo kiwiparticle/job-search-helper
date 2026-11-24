@@ -17,6 +17,7 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 before=$(git rev-parse HEAD)
+echo '== Pulling engine updates'
 git fetch origin
 git pull --no-rebase --no-edit origin main
 git fetch upstream
@@ -24,10 +25,13 @@ git pull --no-rebase --no-edit upstream main
 if ! git diff --quiet "$before" HEAD -- pnpm-lock.yaml; then
     pnpm install --frozen-lockfile
 fi
+echo '== Running tests (about a minute)'
 pnpm test || {
     echo "Tests failed. The merge is local and unpushed: fix and rerun, or undo this run with git reset --hard $before." >&2
     exit 1
 }
+echo '== Tests passed. Pushing'
 git pull --no-rebase --no-edit origin main # the runner and page commit here too
 git push origin HEAD:main
+echo '== Deploying'
 pnpm run deploy
