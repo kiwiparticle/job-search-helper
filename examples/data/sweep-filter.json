@@ -1,5 +1,7 @@
 {
   "version": 1,
+  "roleWords": ["engineer", "engineers", "developer", "developers", "swe", "sde", "programmer", "architect", "technologist", "tech lead", "technical lead", "member of technical staff", "mts", "front end", "full stack", "back end"],
+  "roleNotWords": ["manager", "director", "head", "vp", "recruiter", "recruiters", "recruiting", "recruitment", "sales", "support", "accountant", "designer", "analyst"],
   "titleMust": [],
   "titleMustNot": ["QA", "SDET", "Data Scientist", "Embedded", "Firmware", "Sales Engineer", "Support Engineer", "Engineering Manager", "Director"],
   "titleNonSoftware": ["Mechanical", "Electrical", "Hardware", "Manufacturing", "Civil"],

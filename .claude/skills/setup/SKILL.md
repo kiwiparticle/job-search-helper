@@ -13,10 +13,15 @@ Go one step at a time. Say what's next before you do it, and keep your messages 
 1. **Tools.** Have them run `! bin/install-prereqs.sh`. It skips anything already installed and asks for their password (sudo). Add `--kits` if they want resumes and cover letters, `--browser` for the board finder. Then have them log in to each tool it lists.
 2. **Private copy.** If this is still the public engine clone, ask what to call their repo, then run `node bin/setup.js --private-copy <name>`. The engine stays as `upstream` so they can get updates. Check `git remote -v` shows both remotes.
 3. **Get to know them.** Ask a few questions at a time, then write the files. Start from the `examples/` copies.
+   - First ask what kind of job: **software engineering**, **QA / QE / SDET**, or both. Everything below follows from it.
    - `data/profile.json`: who they are, the level and stack they want, location, pay floor and currency.
-   - `instructions.md`: from `examples/instructions.md`, changed to fit their target roles and dealbreakers.
+   - `instructions.md`: from `examples/instructions.md`, changed to fit their target roles and dealbreakers. For QA, swap the target titles (SDET, QA Engineer, Quality Engineer, Test Automation Engineer) and the tech-fit section (their test frameworks and tools).
    - `master-resume.md`: from their current resume (follow `prompts/seed-master.md`), or by asking. Every fact has to be true.
    - `data/sweep-filter.json`: title words a job must have or can't have, levels, locations.
+     - `roleWords` / `roleNotWords` decide which job titles get saved at all. The example has the engineering lists.
+     - For QA / QE / SDET, use `roleWords`: `["qa", "qe", "sdet", "quality", "quality assurance", "test", "tester", "testing", "automation", "engineer in test", "verification"]`, and `roleNotWords`: the example's list without `analyst` (so "QA Analyst" stays).
+     - For both, combine the two `roleWords` lists and use the QA `roleNotWords`.
+     - Take `QA` and `SDET` out of `titleMustNot` unless they want engineering only.
    - `data/schedule.json`: the default is fine for most people. Ask if they want anything to run more or less often.
    - `data/models.json`: check which of `claude --version` and `codex --version` work. Set `enabled: false` on any that doesn't. Then ask:
      - one searcher (simpler, one runner) or two (more finds, one runner each)?

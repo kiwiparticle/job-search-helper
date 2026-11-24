@@ -6,7 +6,7 @@ import { fromEnv } from './d1rest.js';
 import { loadAll, writeRows } from '../lib/store.js';
 import { sweepBoards } from '../lib/boardSweep.js';
 import { sweepPostings } from '../lib/sweepPostings.js';
-import { loadFilter, dropWords } from '../lib/sweepFilter.js';
+import { loadFilter, dropWords, roleTest } from '../lib/sweepFilter.js';
 
 export async function run(db, { now, fetchImpl = fetch, lookup: dns = lookup, repoDir = fileURLToPath(new URL('..', import.meta.url)), filter = loadFilter(repoDir), drop = dropWords(repoDir) }) {
     const run = `${now.slice(0, 10)}-sweep-${now.slice(11, 16).replace(':', '')}`;
@@ -14,7 +14,7 @@ export async function run(db, { now, fetchImpl = fetch, lookup: dns = lookup, re
         const companies = (await loadAll(db, 'companies')).map((r) => r.record);
         const rows = await loadAll(db, 'postings');
         const postings = rows.map((r) => r.record);
-        const results = await sweepBoards({ companies, postings, dormant: now.slice(8, 10) === '01', drop }, { fetchImpl, lookup: dns });
+        const results = await sweepBoards({ companies, postings, dormant: now.slice(8, 10) === '01', drop, isRole: roleTest(filter) }, { fetchImpl, lookup: dns });
         const versions = new Map(rows.map((r) => [r.id, r.version]));
         const changes = sweepPostings({ companies, postings, results, run, filter }).map((record) => ({ id: record.id, version: versions.get(record.id) ?? null, record }));
         try {

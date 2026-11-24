@@ -10,7 +10,7 @@ Then read these sections of `instructions.md` (they are the owner's rules; follo
 
 **Drop** (`keep: false`) only when the title or posting clearly shows one of these:
 - not a job posting at all (a docs, blog or team page a script mistook for one)
-- not software engineering (hardware, mechanical, electrical, manufacturing, sales, presales, solutions or support engineering, training, IT help desk)
+- not the kind of work the owner does ({{PROFILE_WHO}}): for example hardware, mechanical, electrical, manufacturing, sales, presales, solutions or support engineering, training, IT help desk
 - people management only, contract-only, or a security clearance
 - {{PROFILE_LEVELS_OUT}}
 - a location that doesn't fit: {{PROFILE_LOCATION}} (for example on-site or hybrid only, or a location list that leaves out the place that rule needs)

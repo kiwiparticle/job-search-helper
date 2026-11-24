@@ -1,6 +1,6 @@
 # job-search-helper
 
-An AI does your job search for you, following rules you write. You get a private web page where you go through what it found, track your applications, ask questions about companies and build resumes and cover letters.
+An AI does your job search for you, following rules you write. It's set up for software engineering and QA / QE / SDET jobs. You get a private web page where you go through what it found, track your applications, ask questions about companies and build resumes and cover letters.
 
 It all runs on your own computer, using the Claude (or Codex) subscription you already have. No API keys, no monthly bill.
 
@@ -62,7 +62,7 @@ These are yours to edit. Updates never change them.
 - `master-resume.md`: every true fact about you. Resumes and cover letters only use what's in here.
 - `data/profile.json`: who the search is for: level, stack, location, pay floor
 - `data/schedule.json`: which searches run on their own, and when (times are UTC)
-- `data/sweep-filter.json`: title words a job must have or can't have. Bump `version` after you edit it so old roles get checked again.
+- `data/sweep-filter.json`: which job titles count (`roleWords`), and words a title must have or can't have. Bump `version` after you edit it so old roles get checked again.
 - `data/reasons.json`: the quick reasons Skip and Save offer
 - `data/models.json`: which AI models you use
 

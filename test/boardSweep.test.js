@@ -269,3 +269,24 @@ test('isEngineering keeps junior titles; sweepBoards drops them by `drop`', asyn
     assert.deepEqual(await ids({}), ['greenhouse:2']);
     assert.deepEqual(await ids({ drop: [] }), ['greenhouse:1', 'greenhouse:2']);
 });
+
+test('sweepBoards keeps the owner\'s roles when given isRole, on boards and careers pages', async () => {
+    const json = (body) => ({ status: 200, headers: new Headers({ 'content-type': 'application/json' }), json: async () => body, text: async () => JSON.stringify(body) });
+    const html = '<a href="/jobs/1">SDET II</a><a href="/jobs/2">Senior Software Engineer</a>';
+    const pages = {
+        'https://boards-api.greenhouse.io/v1/boards/qa/jobs': json({ jobs: [
+            { id: 1, title: 'SDET II', absolute_url: 'https://boards.greenhouse.io/qa/jobs/1' },
+            { id: 2, title: 'Senior Software Engineer', absolute_url: 'https://boards.greenhouse.io/qa/jobs/2' },
+        ] }),
+        'https://qa-page.example/careers': { status: 200, headers: new Headers({ 'content-type': 'text/html' }), text: async () => html },
+    };
+    const fetchImpl = async (u) => pages[u] ?? { status: 404, headers: new Headers() };
+    const lookup = async () => [{ address: '8.8.8.8' }];
+    const companies = [
+        { key: 'qa', name: 'qa', stance: 'Watching', jobs: { j: { url: 'https://boards.greenhouse.io/qa/jobs/9' } } },
+        { key: 'pg', name: 'pg', stance: 'Watching', careersUrl: 'https://qa-page.example/careers' },
+    ];
+    const isRole = (t) => /sdet/i.test(t);
+    const out = await sweepBoards({ companies, postings: [], isRole }, { fetchImpl, lookup });
+    assert.deepEqual(out.map((s) => s.roles.map((r) => r.title)), [['SDET II'], ['SDET II']]);
+});

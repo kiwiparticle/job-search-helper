@@ -85,3 +85,14 @@ test('loadFilter: titleDrop defaults when absent, [] when empty', () => {
     assert.deepEqual(dropWords(dir), []);
     assert.deepEqual(dropWords(join(dir, 'nope')), DEFAULT_DROP);
 });
+
+import { roleTest } from '../lib/sweepFilter.js';
+test('roleTest: engineering by default, a QA/SDET list when the filter sets one', () => {
+    const eng = roleTest(null);
+    assert.equal(eng('Senior Software Engineer'), true);
+    assert.equal(eng('SDET II'), false);
+    assert.equal(eng('QA Analyst'), false);
+    const qa = roleTest({ roleWords: ['QA', 'QE', 'SDET', 'quality', 'test', 'tester', 'testing', 'automation', 'engineer in test'], roleNotWords: ['manager', 'director', 'head', 'vp', 'recruiter', 'sales', 'support', 'designer'] });
+    for (const t of ['SDET II', 'QA Analyst', 'Senior QA Engineer', 'Software Development Engineer in Test', 'Test Automation Specialist', 'Quality Engineer']) assert.equal(qa(t), true, t);
+    for (const t of ['QA Manager', 'Senior Software Engineer', 'Product Designer']) assert.equal(qa(t), false, t);
+});
