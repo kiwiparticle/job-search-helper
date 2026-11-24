@@ -122,23 +122,29 @@ let freshD1 = false; // created by this run: a Pages project with the same name 
     }
 }
 
-// 5. repo variables via gh api (old gh has no `gh variable`)
-{
+// 5. repo variables via gh api (old gh has no `gh variable`). Only after D1: JOB_SEARCH_ENABLED turns the
+// workflows on, and they need the database.
+if (!d1Id) skip(5, 'D1 first (step 3), then re-run');
+else {
     const api = `repos/${repo}/actions/variables`;
     let have = {};
     try { for (const v of JSON.parse(sh('gh', ['api', api]).out).variables || []) have[v.name] = v.value; } catch {}
     const acct = sh('npx', ['wrangler', 'whoami']).out.match(/\b[0-9a-f]{32}\b/)?.[0];
     const want = { JOB_SEARCH_ENABLED: 'true', CLOUDFLARE_ACCOUNT_ID: acct, D1_DATABASE_ID: d1Id };
     const notes = [];
+    let attention = false;
     for (const [k, v] of Object.entries(want)) {
-        if (!v) { todo++; notes.push(`${k}: value unknown (set by hand: gh api -X POST ${api} -f name=${k} -f value=...)`); }
+        if (!v) { attention = true; notes.push(`${k}: value unknown (set by hand: gh api -X POST ${api} -f name=${k} -f value=...)`); }
         else if (have[k] === v) continue;
-        else if (check) { todo++; notes.push(`would set ${k}`); }
+        else if (check) { attention = true; notes.push(`would set ${k}`); }
         else {
             const args = k in have ? ['api', '-X', 'PATCH', `${api}/${k}`] : ['api', '-X', 'POST', api, '-f', `name=${k}`];
-            notes.push(sh('gh', [...args, '-f', `value=${v}`]).ok ? `set ${k}` : `FAILED ${k}`);
+            const ok = sh('gh', [...args, '-f', `value=${v}`]).ok;
+            if (!ok) attention = true;
+            notes.push(ok ? `set ${k}` : `FAILED ${k}`);
         }
     }
+    if (attention) todo++; // one count per step, not per variable
     say(5, notes.length ? `${check ? 'todo' : 'done'} ${notes.join('; ')}` : 'ok repo variables');
 }
 
