@@ -50,8 +50,8 @@ if [ "$browser" = 1 ]; then
 fi
 
 echo
-echo "Installed. Log in to each if you have not (they open a browser):"
+echo "All set. Now log in to each of these (each opens a browser):"
 gh auth status >/dev/null 2>&1 || echo "  gh auth login"
 echo "  npx wrangler login"
 has claude && echo "  claude   (then /login)"
-echo "Then: node bin/setup.js --check"
+echo "Then run: node bin/setup.js --check"

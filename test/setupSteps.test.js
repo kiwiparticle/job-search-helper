@@ -89,6 +89,6 @@ test('dashboardSteps fills the token links for this repo and account', () => {
     assert.match(text, /dash\.cloudflare\.com\/abc123\/one\/access-controls\/apps/);
     assert.match(text, /permissionGroupKeys=%5B%7B%22key%22%3A%22d1%22%2C%22type%22%3A%22edit%22%7D%5D/);
     assert.match(text, /target_name=me&expires_in=365&actions=write&contents=write/);
-    assert.match(text, /Only select repositories, then me\/my-search/);
+    assert.match(text, /pick Only select repositories, then me\/my-search/);
     assert.match(text, /hostname, enter my-search\.pages\.dev/);
 });

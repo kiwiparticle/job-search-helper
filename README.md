@@ -1,19 +1,25 @@
 # job-search-helper
 
-A model (Claude by default; Codex, local models and Gemini are options) runs your job search from rules you write, and saves the results in Cloudflare D1. A private page on your own domain shows them: you triage leads, track applications, ask questions about companies and build resume and cover-letter kits. Everything runs on your own machine through your own subscriptions.
+An AI does your job search for you, following rules you write. You get a private web page where you go through what it found, track your applications, ask questions about companies and build resumes and cover letters.
 
-**Safety first: use a private copy.** The runner executes workflow code on your machine. Never register a self-hosted runner on a public repo. Make a private copy of this engine and run everything from that.
+It all runs on your own computer, using the Claude (or Codex) subscription you already have. No API keys, no monthly bill.
 
-## Prerequisites
+**Keep your copy private.** Your computer runs code from the repo, so it has to be a private repo only you control. Setup makes one for you.
 
-Linux or WSL only. On Ubuntu/Debian, `bin/install-prereqs.sh` installs everything below that is missing (add `--kits` and `--browser` for the optional parts). You need:
+## What you need
 
-- Node 26 or newer and `pnpm`
-- `git`, `jq` and the GitHub CLI `gh`, logged in
-- A Cloudflare account (free plan) and `wrangler` logged in
-- Claude Code, and at least one model CLI logged in (`claude` or `codex`)
-- Optional, for application kits: `pandoc`, `libreoffice-writer`, `poppler-utils`
-- Optional, for the browser board finder: Chromium (`pnpm exec playwright install --with-deps chromium`)
+- Linux or WSL on Windows
+- A GitHub account
+- A free Cloudflare account
+- A Claude or Codex subscription
+
+On Ubuntu or Debian, this installs the rest (Node, pnpm, gh, jq, Claude Code):
+
+```
+bin/install-prereqs.sh
+```
+
+Add `--kits` if you want resumes and cover letters, and `--browser` for the board finder. Both are optional.
 
 ## Set up
 
@@ -23,122 +29,99 @@ cd job-search-helper
 claude
 ```
 
-Then run `/setup` in Claude Code. It makes your private copy (keeping this repo as the `upstream` remote), interviews you for your profile and rules, creates the D1 database and Pages project, sets the repo variables, and walks you through the dashboard steps (Access, tokens). It downloads and registers the runner, sets the page's Access settings and prints the dashboard steps with pre-filled token links; you type the two tokens yourself and Claude never sees them. Until setup is done the page says which settings are missing. `node bin/setup.js --check` is a dry run that changes nothing.
+Then type `/setup`. Claude walks you through all of it:
 
-Without Claude Code: `bin/install-prereqs.sh`, then `node bin/setup.js --private-copy <repo name>`, edit the owner files it copies from `examples/`, and re-run `node bin/setup.js` until every step is `ok`. Its last step starts your first search.
+1. Makes your private copy of the repo
+2. Asks about you: the roles you want, your pay floor, your resume
+3. Creates the database and the web page on Cloudflare
+4. Sets up the runner, the program that does the searches on your computer
+5. Gives you links for the few things you click yourself on GitHub and Cloudflare
+6. Starts your first search
 
-Setup sets the repo variable `JOB_SEARCH_ENABLED` in step 5, before the runner and secrets exist; nothing runs without it. Runs start once the runner and secrets are in place.
+You paste the two access tokens yourself, so Claude never sees them. Until setup is done, the page tells you what's still missing.
 
-## Updating
+**No Claude Code?** Run `node bin/setup.js --private-copy <repo name>`, fill in the files it copies from `examples/`, then keep running `node bin/setup.js` until every step says `ok`. Add `--check` to see what it would do without changing anything.
 
-Engine changes arrive from upstream:
+## Getting updates
 
 ```
-git pull --no-rebase upstream main
+pnpm ship
 ```
 
-Your own files (`instructions.md`, `master-resume.md`, `data/profile.json`, `data/schedule.json`, `data/sweep-filter.json`, `data/models.json`, `wrangler.toml` and so on) are yours; `examples/` holds the neutral starting copies. Then `pnpm test` and `pnpm run deploy`.
+That pulls the latest version, runs the tests, pushes and redeploys your page. Your own files are never touched.
 
-## Costs
+## What it costs
 
-- GitHub private repo and self-hosted runner: free.
-- Cloudflare free plan: Pages, D1 and Access (up to 50 users).
-- Models run through the CLIs on your own subscriptions or GPU. No paid API keys are used or needed.
+Nothing extra. A private GitHub repo, a runner on your own computer and Cloudflare's free plan are all free. The searches use your existing subscription.
 
-## Files you edit
+## Your files
 
-- `instructions.md`: the rules every search follows.
-- `master-resume.md`: every true fact about you. Application kits may only use what is here.
-- `data/profile.json`: who the search is for (level, stack, location, pay floor).
-- `data/schedule.json`: which runs start on their own and when (UTC).
-- `data/sweep-filter.json`: words a swept role's title must or must not have, levels and locations. Bump `version` after an edit so filtered roles are checked again.
-- `data/reasons.json`: the one-tap reasons Skip and Save offer. They feed the weekly tune run, which suggests edits to `instructions.md` and the sweep filter. Nothing changes until you click Apply.
-- `data/models.json`: model registry and defaults.
-- `history.md`: dated history, an archive.
+These are yours to edit. Updates never change them.
 
-Your data (companies, postings, applications) lives in D1, and you change it on the page. Don't edit `data/*.jsonl` by hand: it is the daily export.
+- `instructions.md`: the rules every search follows
+- `master-resume.md`: every true fact about you. Resumes and cover letters only use what's in here.
+- `data/profile.json`: who the search is for: level, stack, location, pay floor
+- `data/schedule.json`: which searches run on their own, and when (times are UTC)
+- `data/sweep-filter.json`: title words a job must have or can't have. Bump `version` after you edit it so old roles get checked again.
+- `data/reasons.json`: the quick reasons Skip and Save offer
+- `data/models.json`: which AI models you use
+
+Everything else (companies, jobs, applications) lives in the database. Change it on the page. Don't edit `data/*.jsonl`: it's a backup that gets rewritten every day.
 
 ## What runs
 
-In a new copy `tracked` search, `daily` search (Mon, Wed, Fri) and `sweep` run on their own. The other workflows run when you add them to `data/schedule.json` (times are UTC) or start them by hand from the page; the table's times are suggestions. Everything runs on a self-hosted GitHub Actions runner on your machine, using your own Claude and Codex logins. Nothing runs while the machine is off. Queued jobs wait for it.
+Out of the box, three things run on their own:
 
-| Workflow | Suggested schedule (set in `data/schedule.json`) | Does |
-| --- | --- | --- |
-| `search` (`daily`) | Mon, Wed, Fri 11:00 UTC, or by hand | Fresh role discovery |
-| `search` (`tracked`) | Daily 10:00 UTC, or by hand | Daily active-lead and weekly application/watched-company monitoring; up to 15 manual boards and 30 role screens per run |
-| `search` (`links`) | By hand | Finds careers and jobs links for up to 40 tracked companies that have none |
-| `search` (`culture`) | Mon 13:00 UTC, or by hand | Culture-first company discovery |
-| `search` (`vertical`) | Tue, Thu 11:00 UTC (the queued verticals), or by hand (pick verticals in the run menu) | Deep vertical sweep |
-| `search` (`reconcile`) | Fri 13:00 UTC, or by hand | Checks company records against history |
-| `sweep` | 04:00 and 16:00 UTC, or by hand (run menu: Sweep job boards) | Script, no model: saves new senior roles from tracked companies' own boards. They show in New as "Found on boards, not reviewed" |
-| `check-postings` | 06:00 and 18:00 UTC, or by hand (the page's Re-check buttons) | Checks saved jobs, applications and new leads; prunes when run on the 1st; exports `data/*.jsonl` and commits it |
-| `resolve-links` | Sun 07:00 UTC, or by hand (run menu) | Script, no model: finds the Greenhouse, Lever or Ashby board behind a careers page and sets it as the jobs link |
-| `tune` | Sat 13:00 UTC, or by hand (Searches) | Reads your Skip and Save reasons since the last tune and proposes rule edits; skips the model when there are none |
-| `ask` | From the page | One question about one company, to Claude, Codex or both |
-| `fill` | From the page | Looks up facts for one company |
-| `kit` | From the page | Resume, cover letter or form answers for one job |
+- **Daily search** (Mon, Wed, Fri): looks for new jobs
+- **Tracked search** (every day): re-checks companies you're following and their job boards
+- **Board sweep** (twice a day): grabs new roles straight from companies' job boards. No AI, just a script.
 
-A search run works like this:
-1. The searcher (or two, if you pick them) searches on its own.
-2. A reviewer, if you pick one, checks the finds. Its opinion shows on the lead and changes nothing.
-3. The script merges the results and writes them to D1:
-   - per field, the first searcher's value wins; every model's opinion stays visible on the lead
-   - a stance you set is never changed by a run; models only change empty stances or ones a model set
-   - a model never rules a company out on its own: it suggests it, and you confirm or keep the company under Passed → Companies
-   - a field that changed since the run started is left alone
-   - nothing changes a company you've ruled out or one with an open application
-   - Undo on the run page reverts a run's change to a company
+Add more to `data/schedule.json`, or start any of these from the page's Searches menu:
 
-Run output goes in `runs/<date>-<workflow>/`.
+- **Culture search**: finds companies by how they work
+- **Vertical search**: digs deep into one industry
+- **Posting check**: spots jobs that were taken down, and saves the daily backup
+- **Tune**: reads your Skip and Save reasons and suggests changes to your rules. Nothing changes until you click Apply.
 
-## The runner
+From any company or job on the page you can also:
 
-`node bin/setup.js` downloads and registers a GitHub Actions runner per searcher and prints the `sudo` line that starts each as a service. If Claude or Codex logs out, the page shows a banner: run `claude` or `codex login`, then start the run again.
+- **Ask** a question about a company
+- **Fill** in missing facts about it
+- **Kit**: write a resume, cover letter or form answers for one job
+
+Nothing runs while your computer is off. Jobs wait until it's back on.
+
+## What a search can and can't change
+
+- It never changes a stance you set yourself.
+- It never rules out a company on its own. It suggests it, and you decide under Passed → Companies.
+- It never touches a company you've ruled out or one you've applied to.
+- If you changed something while it was running, your change wins.
+- Undo on a run's page reverts what that run changed.
 
 ## Models
 
-Which models a run uses comes from `data/models.json`.
+- **Per run:** pick the searchers and reviewer in the run menu.
+- **Defaults:** edit `defaults` in `data/models.json`, then commit and push.
+- **Turn one on or off:** More → Models on the page.
+- **Local models:** add them to your `model-configs.json`, then run `node bin/sync-models.js`. They show up turned off. Turn on the ones you want.
+- **Gemini:** install the Antigravity CLI and run `agy` once to log in.
 
-- **Pick per run:** in the run menu, set First searcher, Second searcher and Reviewer. A greyed-out model has too small a context for that job.
-- **Change the defaults:** edit `defaults` in `data/models.json`, commit and push.
-- **Local model:** add the alias to your `model-configs.json`, then `node bin/sync-models.js --dry-run` and `node bin/sync-models.js`. New models arrive disabled; set `"enabled": true` on the ones you want.
-- **Gemini (`agy`):** install the Antigravity CLI and run `agy` once to log in.
+If Claude or Codex gets logged out, the run shows as failed on the Status page and says why. Log back in (`claude`, or `codex login`) and run it again.
 
-What to check by hand for local models and agy is in `docs/model-routing-owner-checklist.md`.
+## Backups
 
-## Cloudflare
+- **The last 7 days:** Cloudflare can roll the whole database back to any minute. Go to D1 → your database → Time Travel.
+- **Older than that:** a copy is saved to `data/*.jsonl` in your repo twice a day, and git keeps every old version. There's no script to load it back into the database yet.
 
-`pnpm run deploy` deploys to the Pages project named by `name` in `wrangler.toml`. Schema: `db/schema.sql`. After a schema change that adds a table, apply it before deploying: `npx wrangler d1 execute <your database name> --remote --file db/schema.sql` (it only creates what is missing).
-
-`pnpm run preview` serves the built page on localhost:8099 with the repo's `data/*.jsonl` in a throwaway database. `PREVIEW_DATA=<path> pnpm run preview` reads data and owner files from another checkout instead.
-
-Only the search setup and finish jobs, the ask, fill and similar prepare and finish jobs, the check-postings job and the resolve-links job get the Cloudflare token. Jobs that run a model never do.
-
-## Backups and restore
-
-- **Export.** `check-postings` writes `data/companies.jsonl`, `data/postings.jsonl` and `data/history.jsonl` to the repo each time it runs, one record per line. The check is scheduled twice daily; the backup is only as fresh as the last successful run, including when the machine is off. Git history of `data/` holds the earlier copies. To see an older state: `git log --oneline -- data/` and `git show <commit>:data/companies.jsonl`.
-- **Restoring from the export is manual.** No script loads `data/*.jsonl` back into D1 yet. Ask for one to be written before you need it.
-- **D1 Time Travel** restores the whole database to any minute in the last 7 days (free plan). Dashboard: D1 → `job-search` → Time Travel. Or from a terminal: `npx wrangler d1 time-travel restore --help`, then restore to the time you want. Anything written after that time is lost.
-
-## Tests
+## For developers
 
 ```
-pnpm test          # node --test (pipeline, D1 store, backend) and Vitest (page)
-npx tsc -p web     # typecheck the page
+pnpm test          # all tests
+npx tsc -p web     # type check the page
+pnpm run preview   # the page on localhost:8099 with your local data
 ```
 
-No dependencies for the pipeline and backend. Node 26 or newer.
-
-## Search coverage and retries
-
-Tracked monitoring runs on its `data/schedule.json` schedule (daily by default). It checks active leads daily and active applications and other tracked companies every seven UTC calendar days. Ruled-out companies are excluded first. Active applications retain their protected facts, stance and outcomes.
-
-Successful supported-board API reads count as script verification. Manual board checks are only model-reported evidence. API-capable boards cannot be kept fresh by model claims. Blocked and unfinished checks remain due. Posting-liveness checks still run separately twice daily.
-
-Manual checks share 15 slots: five each for active leads, applications, and other tracked companies; unused slots are borrowed in that order. Overflow and incomplete checks appear in the run report. Daily/weekly coverage can fall behind when targets exceed capacity.
-
-Role screening uses up to 30 slots, one per company per round, ordered by the company's last scheduling attempt. Within a company, never-tried roles come first. Every discovered board role stays queued until explicitly judged or skipped; omission never means pass. Model reports may include up to 200 additional unreviewed discoveries from manual boards, with larger overflow labeled partial.
-
-Setup remains read-only. Attempt and evidence timestamps are saved atomically by finish, even after failed model jobs. A failed finish leaves no durable attempt until retried. A completed rerun never repeats attempts or patches. Sendbacks require an existing completion marker and apply no company patches.
-
-Normal search and review jobs read the same fresh D1 snapshot, `company-state.jsonl`; original patch protection uses a separate `base.jsonl`. Sendbacks get a fresh company snapshot without replacing the original base. Retrying a workflow reuses its frozen preparation artifacts and execution identity; expired artifacts require a fresh run.
+- `pnpm run deploy` publishes the page.
+- If an update adds a database table, run this before deploying: `npx wrangler d1 execute <database name> --remote --file db/schema.sql`. It only adds what's missing.
+- `CLAUDE.md` explains how the pieces fit together.

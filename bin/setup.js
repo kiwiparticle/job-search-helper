@@ -192,7 +192,7 @@ else {
             start.push(`cd ~/${name} && ${existsSync(join(dir, '.service')) ? '' : 'sudo ./svc.sh install && '}sudo ./svc.sh start`);
         }
         say(6, `skip: ${online} of ${want} runner(s) online (one per searcher)${notes.length ? `. ${notes.join('; ')}` : ''}`);
-        if (start.length) { console.log('   Start each in your terminal, then re-run:'); start.forEach((l) => console.log(`   ${l}`)); }
+        if (start.length) { console.log('   Start each one (asks for your password), then run setup again:'); start.forEach((l) => console.log(`   ${l}`)); }
     }
 }
 
@@ -252,11 +252,11 @@ async function installRunner(dir, name) {
         if (type.length || notes.some((n) => n.includes('missing'))) {
             const account = sh('npx', ['wrangler', 'whoami']).out.match(/\b[0-9a-f]{32}\b/)?.[0];
             const domain = pagesDomain(sh('npx', ['wrangler', 'pages', 'project', 'list', '--json']).out, project);
-            console.log('   Dashboard steps:');
+            console.log('   A few things to click (about 10 minutes):');
             dashboardSteps({ account, repo, domain }).forEach((l) => console.log(`   ${l}`));
-            console.log('   Then: node bin/setup.js --email <your Access email> --team-domain <team>.cloudflareaccess.com --aud <AUD tag>');
+            console.log('   Then run: node bin/setup.js --email <the email you log in with> --team-domain <team>.cloudflareaccess.com --aud <AUD tag>');
         }
-        if (type.length) { console.log('   Type each token yourself (it prompts), then re-run:'); type.forEach((l) => console.log(`   ${l}`)); }
+        if (type.length) { console.log('   Paste in each token (each command asks for it), then run setup again:'); type.forEach((l) => console.log(`   ${l}`)); }
     }
 }
 
