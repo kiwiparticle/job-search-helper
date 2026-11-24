@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { cleanSchedule, dueAt, dispatchOf } from '../lib/schedule.js';
+import { cleanSchedule, dueAt, dueSince, dispatchOf } from '../lib/schedule.js';
 
 test('dueAt matches day and hour in UTC', () => {
     const s = { tracked: { days: null, hours: [10] }, daily: { days: [1, 3, 5], hours: [11] } };
@@ -45,4 +45,14 @@ test('schedule-tick fails loudly on a schedule file that does not parse, stays q
     const none = run(join(d, 'missing.json'));
     assert.equal(none.status, 0);
     assert.match(none.stdout, /nothing due/);
+});
+
+test('dueSince catches up a dropped slot within the window unless a run already started', () => {
+    const s = { tracked: { days: null, hours: [10] }, sweep: { days: null, hours: [4, 16] } };
+    const none = () => false;
+    assert.deepEqual(dueSince(s, new Date('2026-11-24T12:05Z'), 6, none), ['tracked']);
+    assert.deepEqual(dueSince(s, new Date('2026-11-24T17:05Z'), 6, none), ['sweep']);
+    assert.deepEqual(dueSince(s, new Date('2026-11-24T12:05Z'), 6, (id, slot) => slot.toISOString() === '2026-11-24T10:00:00.000Z'), []);
+    assert.deepEqual(dueSince(s, new Date('2026-11-24T17:05Z'), 6, (id) => id === 'sweep'), []);
+    assert.deepEqual(dueSince(s, new Date('2026-11-24T23:05Z'), 6, none), []);
 });
