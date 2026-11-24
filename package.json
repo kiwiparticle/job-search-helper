@@ -6,7 +6,8 @@
     "test": "node --test test/ && vitest run",
     "build": "tsc -p web && vite build",
     "deploy": "vite build && npx --yes wrangler@4 pages deploy dist --branch main --commit-dirty=true",
-    "preview": "vite build && node dev/preview-server.mjs"
+    "preview": "vite build && node dev/preview-server.mjs",
+    "ship": "bin/ship.sh"
   },
   "devDependencies": {
     "@base-ui/react": "1.9.0",
