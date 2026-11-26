@@ -1,7 +1,7 @@
 import { companyKey, leadKey, sameCompany } from '../../lib/keys.js';
 import * as O from '../../lib/ownerActions.js';
 import { updateCompanies } from './companiesWrite.js';
-import { currentSeq, deltaJson, historyLines, jsonLines, loadAll, loadSome, writeRows } from '../../lib/store.js';
+import { currentSeq, deltaJson, historyLines, jsonLines, loadAll, loadSome, scriptSummaries, writeRows } from '../../lib/store.js';
 import { companyOf } from '../../lib/tags.js';
 import { newEntry, factsBlock } from '../../lib/supplement.js';
 import { blankCompany, needsCultureFill } from '../../lib/companies.js';
@@ -120,14 +120,17 @@ export async function handleToken({ gh }) {
 }
 
 // The status page: recent runs with their state. No per-run job lookups (free-plan subrequest limit).
-export async function handleActivity({ gh }) {
+// Script runs carry their one-line `summary` from D1; a failed D1 read only loses the summaries.
+export async function handleActivity({ gh, db }) {
     try {
+        const summaries = db ? await scriptSummaries(db).catch(() => new Map()) : new Map();
         const runs = (await gh.listRecentRuns())
             // The hourly tick runs 24 times a day; only its failures matter, and the rest would push real runs out of the window.
             .filter((r) => !(r.name === 'schedule' && r.conclusion === 'success'))
             .map((r) => ({
             id: r.id, workflow: r.name, title: r.display_title, status: r.status, conclusion: r.conclusion,
             createdAt: r.created_at, startedAt: r.run_started_at, updatedAt: r.updated_at, url: r.html_url,
+            ...(summaries.has(r.id) && { summary: summaries.get(r.id) }),
         }));
         return json(200, { runs });
     } catch (e) {

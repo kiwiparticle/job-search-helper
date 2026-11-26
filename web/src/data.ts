@@ -310,7 +310,7 @@ export function useWorking(company: string, role?: string, strict?: boolean): st
     });
 }
 
-export type ActivityRun = { id: number; workflow: string; title?: string; status: string; conclusion: string | null; createdAt: string; startedAt?: string; updatedAt: string; url: string };
+export type ActivityRun = { id: number; workflow: string; title?: string; status: string; conclusion: string | null; createdAt: string; startedAt?: string; updatedAt: string; url: string; summary?: string };
 
 // Recent runs, every state. Polls every 20s by default; the bar's Status link asks every 5 minutes.
 // Observers share the query, so the shortest interval mounted wins.

@@ -6,7 +6,7 @@ import { loadAll, writeRows } from '../lib/store.js';
 import { checkAll, prune } from '../lib/postingCheck.js';
 
 // Checks postings, prunes on the 1st, writes only what changed. Redoes the whole pass when a row moved meanwhile.
-export async function run(db, { today, fetchImpl = fetch, lookup: dns = lookup }) {
+export async function run(db, { now = new Date().toISOString(), today = now.slice(0, 10), fetchImpl = fetch, lookup: dns = lookup, ghRun = process.env.GITHUB_RUN_ID }) {
     for (let attempt = 1; ; attempt++) {
         const companies = (await loadAll(db, 'companies')).map((r) => r.record);
         const rows = await loadAll(db, 'postings');
@@ -22,8 +22,11 @@ export async function run(db, { today, fetchImpl = fetch, lookup: dns = lookup }
             }),
             ...rows.filter((r) => !kept.has(r.id)).map((r) => ({ id: r.id, version: r.version, record: null })),
         ];
+        const gone = changes.filter((c) => c.record?.posted === 'no' && before.get(c.id)?.record.posted !== 'no').length;
+        const pruned = changes.filter((c) => c.record === null).length;
+        const summary = `${rows.length} postings checked · ${gone} taken down · ${changes.length} changed${pruned ? ` · ${pruned} pruned` : ''}`;
         try {
-            await writeRows(db, { postings: changes });
+            await writeRows(db, { postings: changes, finishedRun: { run: `check:${now}`, at: now, result: { ghRun, summary } } });
         } catch (e) {
             if (e.stale && attempt < 3) continue;
             throw e;
@@ -35,5 +38,5 @@ export async function run(db, { today, fetchImpl = fetch, lookup: dns = lookup }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    await run(fromEnv(), { today: new Date().toISOString().slice(0, 10) });
+    await run(fromEnv(), {});
 }

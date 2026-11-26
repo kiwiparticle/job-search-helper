@@ -8,7 +8,7 @@ import { sweepBoards } from '../lib/boardSweep.js';
 import { sweepPostings } from '../lib/sweepPostings.js';
 import { loadFilter, dropWords, roleTest } from '../lib/sweepFilter.js';
 
-export async function run(db, { now, fetchImpl = fetch, lookup: dns = lookup, repoDir = fileURLToPath(new URL('..', import.meta.url)), filter = loadFilter(repoDir), drop = dropWords(repoDir) }) {
+export async function run(db, { now, fetchImpl = fetch, lookup: dns = lookup, repoDir = fileURLToPath(new URL('..', import.meta.url)), filter = loadFilter(repoDir), drop = dropWords(repoDir), ghRun = process.env.GITHUB_RUN_ID }) {
     const run = `${now.slice(0, 10)}-sweep-${now.slice(11, 16).replace(':', '')}`;
     for (let attempt = 1; ; attempt++) {
         const companies = (await loadAll(db, 'companies')).map((r) => r.record);
@@ -17,13 +17,15 @@ export async function run(db, { now, fetchImpl = fetch, lookup: dns = lookup, re
         const results = await sweepBoards({ companies, postings, dormant: now.slice(8, 10) === '01', drop, isRole: roleTest(filter) }, { fetchImpl, lookup: dns });
         const versions = new Map(rows.map((r) => [r.id, r.version]));
         const changes = sweepPostings({ companies, postings, results, run, filter }).map((record) => ({ id: record.id, version: versions.get(record.id) ?? null, record }));
+        const added = changes.filter((c) => c.version === null).length;
+        const summary = `${results.length} boards · ${added} new roles · ${changes.length - added} touched`;
         try {
-            await writeRows(db, { postings: changes });
+            await writeRows(db, { postings: changes, finishedRun: { run: `sweep:${now}`, at: now, result: { ghRun, summary } } });
         } catch (e) {
             if (e.stale && attempt < 3) continue;
             throw e;
         }
-        console.log(`sweep: ${results.length} boards, ${changes.filter((c) => c.version === null).length} new roles, ${changes.filter((c) => c.version !== null).length} touched`);
+        console.log(`sweep: ${summary}`);
         return changes;
     }
 }

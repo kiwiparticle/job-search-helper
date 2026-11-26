@@ -575,6 +575,16 @@ test('activity lists recent runs of every state', async () => {
     assert.deepEqual(body.runs, [{ id: 1, workflow: 'kit-revise', title: 'revise Acme | Staff', status: 'completed', conclusion: 'success', createdAt: 'a', startedAt: 'b', updatedAt: 'c', url: 'u' }]);
 });
 
+test('activity attaches script-run summaries from finished_runs by GitHub run id', async () => {
+    const db = sqliteD1(); applySchema(db);
+    await writeRows(db, { finishedRun: { run: 'sweep:2026-11-26T12:00:00Z', at: '2026-11-26T12:00:00Z', result: { ghRun: '7', summary: '3 boards · 1 new roles · 2 touched' } } });
+    await writeRows(db, { finishedRun: { run: 'triage:2026-11-26T12:05:00Z', at: '2026-11-26T12:05:00Z', result: { kept: 1, dropped: 0, missing: 0 } } });
+    const gh = { listRecentRuns: async () => [{ id: 7, name: 'sweep', status: 'completed' }, { id: 8, name: 'triage', status: 'completed' }] };
+    const body = await (await handleActivity({ gh, db })).json();
+    assert.equal(body.runs[0].summary, '3 boards · 1 new roles · 2 touched');
+    assert.equal(body.runs[1].summary, undefined);
+});
+
 test('activity drops successful schedule ticks but keeps failed ones', async () => {
     const run = (id, name, conclusion) => ({ id, name, display_title: 't', status: 'completed', conclusion });
     const gh = { listRecentRuns: async () => [run(1, 'schedule', 'success'), run(2, 'schedule', 'failure'), run(3, 'tune', 'success')] };

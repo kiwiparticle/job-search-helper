@@ -24,12 +24,14 @@ export function PassedPage() {
     // The Filtered chip lists roles the sweep filter (data/sweep-filter.json) passed on, with its reason.
     const jobs = show === 'filtered' ? filtered : modelJobs;
 
-    // The reason lives only in the run reports (postings are slim), so read the runs the shown jobs came from.
-    const runs = [...new Set(postings.filter((p) => p.modelSays === 'pass').flatMap((p) => [p.lastRun, p.firstRun]).filter(Boolean))];
+    // The reason lives only in the run reports (postings are slim), so read the runs that judged the shown jobs.
+    // `runs` lists the search runs that judged it; a sweep rewrites lastRun daily and has no report, so sweep names are left out.
+    const judgedIn = (p: Posting) => [...new Set([...(p.runs ?? []).slice(-2).reverse(), p.lastRun, p.firstRun])].filter((r) => r && !r.includes('-sweep-'));
+    const runs = [...new Set(postings.filter((p) => p.modelSays === 'pass').flatMap(judgedIn))];
     const reports = useQueries({ queries: tab === 'jobs' ? runs.map((run) => ({ queryKey: ['report', run], queryFn: () => getJson<Report>(`runs/${run}/report.json`), staleTime: Infinity, retry: false })) : [] });
     const byRun = new Map(runs.map((run, i) => [run, reports[i]?.data]));
     const reasonOf = (p: Posting) => {
-        for (const run of [p.lastRun, p.firstRun]) {
+        for (const run of judgedIn(p)) {
             const lead = [...(byRun.get(run)?.nearMisses ?? []), ...(byRun.get(run)?.leads ?? [])].find((l) => l.key === p.leadKey);
             const note = lead && opinionsOf(lead).find(([, v]) => v.note)?.[1].note;
             if (note) return String(note);

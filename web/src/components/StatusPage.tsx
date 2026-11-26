@@ -49,6 +49,7 @@ function Section({ title, runs, state, folders }: { title: string; runs: Activit
                                 <RunLabel title={r.title} fallback={r.workflow} /> <span className="muted small">{state(r)} · {ago(r.updatedAt)}</span>{' '}
                                 {f && <><Link to={`/runs/${f.run}`} className="ext inline">Details</Link>{' '}</>}
                                 <ExtLink href={r.url} className="inline">GitHub</ExtLink>
+                                {r.summary && <div className="muted small">{r.summary}</div>}
                                 {f?.counts && <div className="muted small">{result(f.counts)}{f.models && Object.keys(f.models).length > 0 && ` · ${runModelsText(f.models, f.reviewers, label)}`}</div>}
                             </li>
                         );
