@@ -196,9 +196,9 @@ function JobTab({ posting, lead, pending }: { posting?: Posting; lead?: RunLead;
     return (
         <div className="job-cols">
             <div>
-                {lead.overview && <section className="section" aria-label="Job overview"><h3>About the job</h3><p>{lead.overview}</p></section>}
+                {lead.overview && <section className="section" aria-label="Job overview"><h3>About the job</h3><p><RichText text={lead.overview} /></p></section>}
                 <AssessmentBlock posting={lead} />
-                {(lead.questions ?? []).length > 0 && <div className="section"><h3>Questions for the recruiter screen</h3><ul className="plain">{(lead.questions ?? []).map((q) => <li key={q}>{q}</li>)}</ul></div>}
+                {(lead.questions ?? []).length > 0 && <div className="section"><h3>Questions for the recruiter screen</h3><ul className="plain">{(lead.questions ?? []).map((q) => <li key={q}><RichText text={q} /></li>)}</ul></div>}
             </div>
             <div>
                 <Verdicts lead={lead} />
