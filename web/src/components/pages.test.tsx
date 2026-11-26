@@ -359,6 +359,14 @@ test('the job page says so when the report has no write-up for the job, and show
     expect(screen.getByText('Is on-call paid?')).toBeInTheDocument();
 });
 
+test('a passed job shows its write-up from the report\'s near misses', async () => {
+    companies = [company()];
+    postings = [posting()];
+    report = { leads: [], nearMisses: [{ key: 'k', company: 'X Corp', role: 'Staff Engineer', foundBy: 'both', opinions: { claude: { verdict: 'Skip', note: 'No real posting' } } }] };
+    wrap(<Routes><Route path="/jobs/:id" element={<JobPage />} /></Routes>, '/jobs/p1');
+    expect(await screen.findByText('No real posting')).toBeInTheDocument();
+});
+
 test('the job page says Unreviewed only for a find nobody reviewed', async () => {
     companies = [company()];
     postings = [posting()];

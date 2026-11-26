@@ -140,11 +140,15 @@ export function JobActions({ company, job, review, openLink }: { company: Compan
     );
 }
 
+// A passed job's write-up sits under nearMisses, a lead's under leads.
+const findLead = (report: { leads?: RunLead[]; nearMisses?: RunLead[] } | undefined, key?: string) =>
+    [...(report?.leads ?? []), ...(report?.nearMisses ?? [])].find((l) => l.key === key);
+
 // The write-up lives in the run's report, so it loads on its own and is found by lead key.
 function useWriteUp(posting?: Posting) {
     const { data: report, isPending, isError } = useReport(posting?.lastRun);
     // No run yet (a job the owner added): the query is disabled and would read as pending forever.
-    return { pending: Boolean(posting?.lastRun) && isPending, lead: isError ? undefined : report?.leads?.find((l) => l.key === posting?.leadKey) };
+    return { pending: Boolean(posting?.lastRun) && isPending, lead: isError ? undefined : findLead(report, posting?.leadKey) };
 }
 
 function Verdicts({ lead }: { lead: RunLead }) {
@@ -167,7 +171,7 @@ function Verdicts({ lead }: { lead: RunLead }) {
 // Earlier runs that reviewed this job, newest first. Each loads its own report only when opened.
 function EarlierReview({ run, leadKey }: { run: string; leadKey: string }) {
     const { data: report, isPending } = useReport(run);
-    const lead = report?.leads?.find((l) => l.key === leadKey);
+    const lead = findLead(report, leadKey);
     return <Fold className="earlier-run" title={`Run ${run}`}>{isPending ? <p className="muted small">Loading…</p> : lead ? <Verdicts lead={lead} /> : <p className="muted small">No write-up saved in this run.</p>}</Fold>;
 }
 
