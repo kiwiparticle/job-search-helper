@@ -244,3 +244,11 @@ test('fit: a whole number 1-5 is kept, anything else dropped; two searchers give
     const [none] = mergeCandidates({ claude: ok([brindle]), codex: ok([]), reviews: {} });
     assert.equal('fit' in none, false);
 });
+
+test('the searcher\'s kind rides on the merged find, so a Skip on a non-board link still judges its posting', () => {
+    const c = { company: 'Tamarack', role: 'Principal Architect', url: 'https://wellfound.com/jobs/1-principal', verdict: 'Skip', kind: 'role' };
+    const [lead] = mergeCandidates({ claude: ok([c]), codex: ok([]) });
+    assert.equal(lead.kind, 'role');
+    const [plain] = mergeCandidates({ claude: ok([{ ...c, kind: undefined }]), codex: ok([]) });
+    assert.equal('kind' in plain, false);
+});
