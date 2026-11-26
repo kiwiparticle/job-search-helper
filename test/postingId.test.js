@@ -54,6 +54,8 @@ test('boardId reads the newer boards; jobUrlKey matches one job link, never a ca
     assert.equal(boardId('https://t.jobs.personio.com/job/12345'), 'personio:12345');
     assert.equal(boardId('https://jobs.gem.com/acme/am9icG9zdDpO7-0Hu'), 'gem:am9icG9zdDpO7-0Hu');
     assert.equal(jobUrlKey('https://acme.com/careers/'), '');
+    assert.equal(jobUrlKey('https://www.acme.com/wp-content/uploads/FM_Job-Profile_Full_Stack_Developer_EN.pdf'), 'acme.com/wp-content/uploads/FM_Job-Profile_Full_Stack_Developer_EN.pdf');
+    assert.equal(jobUrlKey('https://acme.com/careers/index.html'), '');
     for (const index of ['https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=cf3e7f5e-75e2-425c-b471-16a0b1f61090&ccId=1',
         'https://recruiting.paylocity.com/recruiting/jobs/All/13afa810-5782-4e0f-bd66-ca1861e6a9df/Acme',
         'https://recruiting.ultipro.com/DMS1000DMSI/JobBoard/45a5691f-f554-94c1-1066-60b749d0c878/']) assert.equal(jobUrlKey(index), '', index);
